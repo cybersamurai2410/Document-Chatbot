@@ -3,15 +3,23 @@ import streamlit as st
 from PyPDF2 import PdfReader
 from enum import Enum 
 
+from langchain.llms import HuggingFaceHub
 from langchain_google_genai import GoogleGenerativeAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-from langchain.prompts import PromptTemplate
+# from langchain.chat_models import ChatOpenAI
+# from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
+
+# from langchain.prompts import PromptTemplate
 from langchain_text_splitters import CharacterTextSplitter, RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS 
+from langchain.memory import ConversationBufferMemory, ChatMessageHistory
+from langchain.chains import ConversationalRetrievalChain, StuffDocumentsChain, LLMChain
 
-llm = ChatGoogleGenerativeAI(model="gemini-pro") # Create dictionary of LLMs  
+llm = {
+    "gemini-pro":ChatGoogleGenerativeAI(model="gemini-pro")
+    }  
 Documents = Enum('Doc_Type', ['PDF', 'WEBPAGE', 'YOUTUBE', 'TEXT', 'CSV'])
 
 # 1 token ~= 4 chars in English; cost = estimate_tokens * price per token
@@ -68,10 +76,27 @@ def get_vectorstore(chunks):
 
     return vectorstore
 
+def get_conversation_chain(vectorstore):
+    llm = ChatGoogleGenerativeAI(model="gemini-pro")
+    memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
+    conversation_chain = ConversationalRetrievalChain.from_llm(
+        llm = llm,
+        retriever=vectorstore.as_retriever(),
+        memory=memory 
+    )
+
+    return conversation_chain
+
 def main():
     load_dotenv()
 
     st.set_page_config(page_title="Chat with your documents", page_icon=":books:")
+
+    # st.session_state prevents variables from reinitializing since streamlit often reloads code during session
+    if "conversation" not in st.session_state:
+        st.session_state.conversation = None
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = None
 
     st.header("Chat with your documents :books:")
     st.text_input("Ask a question:")
@@ -90,6 +115,9 @@ def main():
 
                 # Create vector store
                 vectorstore = get_vectorstore(text_chunks)
+
+                # Create conversation chain
+                st.session_state.conversation = get_conversation_chain(vectorstore)
 
 if __name__ == '__main__':
     main()
