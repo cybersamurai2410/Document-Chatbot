@@ -6,13 +6,7 @@ from PyPDF2 import PdfReader
 from enum import Enum 
 
 # LLMs and Embeddings
-from langchain_community.llms import HuggingFaceHub
-from langchain_community.chat_models.huggingface import ChatHuggingFace
-from langchain.chat_models import ChatOllama
-from langchain.embeddings import OllamaEmbeddings
-from langchain_google_genai import GoogleGenerativeAI
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from models import llm, embedding
 
 # from langchain.chat_models import ChatOpenAI
 # from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
@@ -23,9 +17,6 @@ from langchain_community.vectorstores import FAISS
 from langchain.memory import ConversationBufferMemory, ChatMessageHistory
 from langchain.chains import ConversationalRetrievalChain, StuffDocumentsChain, LLMChain
 
-llm = {
-    "gemini-pro": ChatGoogleGenerativeAI(model="gemini-pro", convert_system_message_to_human=True)
-    }  
 Documents = Enum('Doc_Type', ['PDF', 'WEBPAGE', 'YOUTUBE', 'TEXT', 'CSV'])
 
 def format_docs(docs):
@@ -80,7 +71,7 @@ def get_text_chunks(text):
     return chunks
 
 def get_vectorstore(chunks):
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    embeddings = embedding["gemini-pro"]
     vectorstore = FAISS.from_texts(texts=chunks, embedding=embeddings)
 
     return vectorstore
