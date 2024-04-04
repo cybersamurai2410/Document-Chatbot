@@ -1,8 +1,10 @@
-from langchain_community.llms import HuggingFaceHub, Ollama, HuggingFaceEndpoint
+from langchain_community.llms import HuggingFaceHub, HuggingFaceEndpoint, Ollama
 from langchain_community.chat_models.huggingface import ChatHuggingFace
 from langchain_community.chat_models import ChatOllama
-from langchain_community.embeddings import HuggingFaceEmbeddings, OllamaEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings, HuggingFaceInferenceAPIEmbeddings, OllamaEmbeddings
 
+from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import GoogleGenerativeAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
