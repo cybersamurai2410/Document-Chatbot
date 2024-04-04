@@ -3,7 +3,6 @@ from streamlit_option_menu import option_menu
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
-from langchain_core.prompts import format_document
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, get_buffer_string
@@ -11,7 +10,9 @@ from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain.tools.retriever import create_retriever_tool
 
 from models import llms, embeddings
+from ragchain import combine_documents, CONDENSE_QUESTION_PROMPT, ANSWER_PROMPT
 from dotenv import load_dotenv
+from operator import itemgetter
 import time
 import os 
 from io import BytesIO
@@ -22,7 +23,12 @@ load_dotenv()
 llm = llms['gemini-pro']
 embedding = embeddings["gemini-pro"]
 
-def chat(prompt, docs):
+memory = ConversationBufferMemory(return_messages=True, output_key="answer", input_key="question")
+loaded_memory = RunnablePassthrough.assign(
+    chat_history = RunnableLambda(memory.load_memory_variables) | itemgetter("history") # Dictionary with history key after loading memory
+)
+
+def chat(prompt, docs=[], chain=None):
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
@@ -35,15 +41,18 @@ def chat(prompt, docs):
             yield word + " "
             time.sleep(0.05)
 
+    if chain is not None:
+        result = chain.invoke({"question": prompt})
+        print(result)
+        memory.save_context(prompt, {"answer": result["answer"].content}) 
+
     with st.chat_message("user"):
         st.markdown(prompt)
     
     with st.chat_message("assistant"):
         if docs:
-            response = st.write_stream(stream_response(prompt)) 
-
-            st.session_state.chat_history.append({"role": "user", "content": prompt})
-            st.session_state.chat_history.append({"role": "assistant", "content": response})
+            response = st.write_stream(stream_response(result["answer"].content)) 
+            st.session_state.chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": response}]
         else:
             st.write_stream(stream_response("Please upload your documents."))
     
@@ -74,8 +83,33 @@ def pdf_loader(docs):
 
     return retriever
 
-def generate_response(retriever):
-    pass
+def get_ragchain(retriever):
+    standalone_question = {
+    "standalone_question": {
+        "question": lambda x: x["question"],
+        "chat_history": lambda x: get_buffer_string(x["chat_history"]) # Combine chat history as single string
+    }
+    | CONDENSE_QUESTION_PROMPT
+    | llm
+    | StrOutputParser()
+}
+
+    retrieved_documents = {
+        "docs": itemgetter("standalone_question") | retriever, # Retrieve list of sources 
+        "question": lambda x: x["standalone_question"]
+    }
+
+    answer = {
+        "answer": {
+            "context": lambda x: combine_documents(x["docs"]), # x is dictionary from retrieved_documents with key passed as parameter to return context
+            "question": itemgetter("question") # Gets question key from retrieved_documents dictionary 
+            } | ANSWER_PROMPT | llm,
+        "docs": itemgetter("docs")
+    }
+
+    chain = loaded_memory | standalone_question | retrieved_documents | answer
+
+    return chain
 
 st.set_page_config(page_title="Document Chatbot", page_icon="✨")
 
@@ -98,8 +132,9 @@ with st.sidebar:
         try: 
             if st.button("Process"):
                 with st.spinner("Processing"):
-                    print(docs)
-                    pdf_loader(docs)
+                    # print(docs)
+                    retriever = pdf_loader(docs)
+                    rag_chain = get_ragchain(retriever)
                 
                 success = st.success("Files processed successfully")
                 time.sleep(3)
@@ -110,7 +145,7 @@ with st.sidebar:
 
 st.title("Document Chatbot 📚🤖")
 if prompt := st.chat_input("Ask anything..."):
-    chat(prompt, docs)
+    chat(prompt, docs, rag_chain)
 
 if selected == "CSV":
     st.title(f"Chat with {selected}")
