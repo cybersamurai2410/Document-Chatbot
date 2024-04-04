@@ -3,6 +3,12 @@ from streamlit_option_menu import option_menu
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
+from langchain_core.prompts import format_document
+from langchain.memory import ConversationBufferMemory
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, get_buffer_string
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain.tools.retriever import create_retriever_tool
 
 from models import llms, embeddings
 from dotenv import load_dotenv
@@ -10,6 +16,7 @@ import time
 import os 
 from io import BytesIO
 import tempfile
+import shutil
 
 load_dotenv()
 llm = llms['gemini-pro']
@@ -42,26 +49,33 @@ def chat(prompt, docs):
     
     print("Chat history: ", st.session_state.chat_history)
 
-def document_loader(docs):
+def pdf_loader(docs):
     merge_docs = []
     for file in docs:
-        temp_file_descriptor, temp_file_path = tempfile.mkstemp(suffix='.pdf')
-        os.close(temp_file_descriptor)
+        temp_dir = tempfile.mkdtemp() # Create temporary directory 
+        temp_file_path = os.path.join(temp_dir, file.name) # Add file name in directory
 
+        # Write file content in temp file
         with open(temp_file_path, 'wb') as temp_file:
             temp_file.write(file.getvalue())
 
+        # Load and split content from PDF files
         loader = PyPDFLoader(temp_file_path)  
         documents = loader.load_and_split()
         documents = documents[:3] 
-        merge_docs.extend(documents)
-        os.remove(temp_file_path)
+        merge_docs.extend(documents) # Combine list of files 
+        shutil.rmtree(temp_dir) #Delete temporary directory 
 
     print(merge_docs)
-    vectorstore = Chroma.from_documents(documents, embedding)
+    vectorstore = Chroma.from_documents(merge_docs, embedding)
+    # save_vectorstore = Chroma.from_documents(documents, embedding, persist_directory="./chroma_db")
+    # load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding_function)
     retriever = vectorstore.as_retriever()
 
     return retriever
+
+def generate_response(retriever):
+    pass
 
 st.set_page_config(page_title="Document Chatbot", page_icon="✨")
 
@@ -85,7 +99,7 @@ with st.sidebar:
             if st.button("Process"):
                 with st.spinner("Processing"):
                     print(docs)
-                    document_loader(docs)
+                    pdf_loader(docs)
                 
                 success = st.success("Files processed successfully")
                 time.sleep(3)
