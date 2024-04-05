@@ -5,7 +5,6 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
-# from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, get_buffer_string
 # from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 # from langchain.output_parsers import ResponseSchema, StructuredOutputParser
 # from langchain.tools.retriever import create_retriever_tool
@@ -26,7 +25,7 @@ llm = llms['gemini-pro']
 embedding = embeddings["gemini-pro"]
 
 # summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
-# summary = summary_chain.invoke(docs)
+# summary = summary_chain.invoke(merge_docs)
 
 memory = ConversationBufferMemory(return_messages=True, output_key="answer", input_key="question")
 loaded_memory = RunnablePassthrough.assign(
@@ -55,7 +54,7 @@ def chat(prompt, docs=[], chain=None):
         st.markdown(prompt)
     
     with st.chat_message("assistant"):
-        if docs:
+        if docs and chain is not None:
             response = st.write_stream(stream_response(result["answer"].content)) 
             st.session_state.chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": response}]
         else:
@@ -91,6 +90,10 @@ def pdf_loader(docs):
 st.set_page_config(page_title="Document Chatbot", page_icon="✨")
 
 with st.sidebar:
+    url = "https://github.com/cybersamurai2410/Document-Chatbot/blob/main/README.md"
+    st.markdown("Made by **Aditya.S** 🌟")
+    st.write("Read documentation [here](%s)" % url)
+
     selected = option_menu(
         menu_title="Main Menu",
         options=["PDF", "CSV", "SQL", "Webpage", "YouTube"],
@@ -120,6 +123,11 @@ with st.sidebar:
                     print(docs)
                     # retriever = pdf_loader(docs)
                     # chain = get_ragchain(loaded_memory, retriever, llm)
+
+                    if docs:
+                        st.markdown("**Processed Files:**")
+                        for doc in docs:
+                            st.write('- ', doc.name)
                 
                 if docs:
                     success = st.success("Files processed successfully")
@@ -139,10 +147,6 @@ with st.sidebar:
         st.title(f"Chat with {selected}")
     if selected == "YouTube":
         st.title(f"Chat with {selected}")
-
-    url = "https://github.com/cybersamurai2410/Document-Chatbot/blob/main/README.md"
-    st.markdown("Made by **Aditya.S** 🌟")
-    st.write("Read documentation [here](%s)" % url)
 
 st.title("Document Chatbot 📚🤖")
 if prompt := st.chat_input("Ask anything..."):
