@@ -5,19 +5,19 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, get_buffer_string
-from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
-from langchain.chains.summarize import load_summarize_chain
+# from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, get_buffer_string
+# from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 # from langchain.output_parsers import ResponseSchema, StructuredOutputParser
 # from langchain.tools.retriever import create_retriever_tool
+from langchain.chains.summarize import load_summarize_chain
 
 from models import llms, embeddings
-from ragchain import combine_documents, CONDENSE_QUESTION_PROMPT, ANSWER_PROMPT
+from ragchain import combine_documents, CONDENSE_QUESTION_PROMPT, ANSWER_PROMPT, get_ragchain
 from dotenv import load_dotenv
 from operator import itemgetter
 import time
 import os 
-from io import BytesIO
+from io import BytesIO, StringIO
 import tempfile
 import shutil
 
@@ -88,34 +88,6 @@ def pdf_loader(docs):
 
     return retriever
 
-def get_ragchain(retriever):
-    standalone_question = {
-    "standalone_question": {
-        "question": lambda x: x["question"],
-        "chat_history": lambda x: get_buffer_string(x["chat_history"]) # Combine chat history as single string
-    }
-    | CONDENSE_QUESTION_PROMPT
-    | llm
-    | StrOutputParser()
-}
-
-    retrieved_documents = {
-        "docs": itemgetter("standalone_question") | retriever, # Retrieve list of sources 
-        "question": lambda x: x["standalone_question"]
-    }
-
-    answer = {
-        "answer": {
-            "context": lambda x: combine_documents(x["docs"]), # x is dictionary from retrieved_documents with key passed as parameter to return context
-            "question": itemgetter("question") # Gets question key from retrieved_documents dictionary 
-            } | ANSWER_PROMPT | llm,
-        "docs": itemgetter("docs")
-    }
-
-    chain = loaded_memory | standalone_question | retrieved_documents | answer
-
-    return chain
-
 st.set_page_config(page_title="Document Chatbot", page_icon="✨")
 
 with st.sidebar:
@@ -133,6 +105,7 @@ with st.sidebar:
         if uploaded_files is not None:
             pdf_files = [file for file in uploaded_files if file.type == "application/pdf"] # Filter files to PDF 
 
+            # Remove duplicate files
             seen = set()
             docs = list()
             for file in pdf_files:
@@ -144,29 +117,36 @@ with st.sidebar:
         try: 
             if st.button("Process"):
                 with st.spinner("Processing"):
-                    # print(docs)
-                    retriever = pdf_loader(docs)
-                    rag_chain = get_ragchain(retriever)
+                    print(docs)
+                    # retriever = pdf_loader(docs)
+                    # chain = get_ragchain(loaded_memory, retriever, llm)
                 
-                success = st.success("Files processed successfully")
-                time.sleep(3)
-                success.empty()
+                if docs:
+                    success = st.success("Files processed successfully")
+                    time.sleep(3)
+                    success.empty()
 
         except Exception as e:
             error = st.error(f"Error uploading files:\n {str(e)}")
 
+    if selected == "CSV":
+        st.title(f"Chat with {selected}")
+        uploaded_files = st.file_uploader(f"Upload your {selected} files here and click on **Process**", accept_multiple_files=True)
+
+    if selected == "SQL":
+        st.title(f"Chat with {selected}")
+    if selected == "Webpage":
+        st.title(f"Chat with {selected}")
+    if selected == "YouTube":
+        st.title(f"Chat with {selected}")
+
+    url = "https://github.com/cybersamurai2410/Document-Chatbot/blob/main/README.md"
+    st.markdown("Made by **Aditya.S** 🌟")
+    st.write("Read documentation [here](%s)" % url)
+
 st.title("Document Chatbot 📚🤖")
 if prompt := st.chat_input("Ask anything..."):
-    chat(prompt, docs, rag_chain)
-
-if selected == "CSV":
-    st.title(f"Chat with {selected}")
-if selected == "SQL":
-    st.title(f"Chat with {selected}")
-if selected == "Webpage":
-    st.title(f"Chat with {selected}")
-if selected == "YouTube":
-    st.title(f"Chat with {selected}")
+    chat(prompt, docs, chain=None)
 
 # streamlit run prototype.py
 # C:\Users\Dell\AppData\Local\Temp\tmpwc1bhv2v.pdf
