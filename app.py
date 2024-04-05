@@ -7,6 +7,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, get_buffer_string
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain.chains.summarize import load_summarize_chain
 # from langchain.output_parsers import ResponseSchema, StructuredOutputParser
 # from langchain.tools.retriever import create_retriever_tool
 
@@ -23,6 +24,9 @@ import shutil
 load_dotenv()
 llm = llms['gemini-pro']
 embedding = embeddings["gemini-pro"]
+
+# summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
+# summary = summary_chain.invoke(docs)
 
 memory = ConversationBufferMemory(return_messages=True, output_key="answer", input_key="question")
 loaded_memory = RunnablePassthrough.assign(
@@ -124,11 +128,18 @@ with st.sidebar:
 
     if selected == "PDF":
         st.title(f"Chat with {selected}")
-        docs = st.file_uploader(f"Upload your {selected} files here and click on **Process**", accept_multiple_files=True)
+        uploaded_files = st.file_uploader(f"Upload your {selected} files here and click on **Process**", accept_multiple_files=True)
 
-        if docs is not None:
-            docs = [doc for doc in docs if doc.type == "application/pdf"]
-        
+        if uploaded_files is not None:
+            pdf_files = [file for file in uploaded_files if file.type == "application/pdf"] # Filter files to PDF 
+
+            seen = set()
+            docs = list()
+            for file in pdf_files:
+                if file.name not in seen:
+                    seen.add(file.name)
+                    docs.append(file)
+
         # Show names of files once processed
         try: 
             if st.button("Process"):
