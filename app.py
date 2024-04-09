@@ -36,7 +36,12 @@ loaded_memory = RunnablePassthrough.assign(
     chat_history = RunnableLambda(memory.load_memory_variables) | itemgetter("history") # Dictionary with history key after loading memory
 )
 
-def chat(prompt, docs=[], chain=None):
+# if "chat_history" not in st.session_state:
+#         st.session_state.chat_history = []
+if "chain" not in st.session_state:
+    st.session_state.chain = None
+
+def chat(prompt, docs, chain):
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
@@ -50,21 +55,28 @@ def chat(prompt, docs=[], chain=None):
             time.sleep(0.05)
 
     if chain is not None:
-        result = chain.invoke({"question": prompt})
-        print(result)
-        memory.save_context(prompt, {"answer": result["answer"].content}) 
+        with st.spinner("Processing"):
+            question = {"question": prompt}
+            result = chain.invoke(question)
+            # print(result)
+            memory.save_context(question, {"answer": result["answer"].content}) 
 
     with st.chat_message("user"):
         st.markdown(prompt)
     
     with st.chat_message("assistant"):
-        if docs and chain is not None:
-            content = result["answer"].content + "\n\n" + "Sources:\n"
-            for i, doc in enumerate(result["docs"]):
+        if chain is not None:
+            answer = result["answer"].content
+            sources = result["docs"]
+            
+            content = "\n\n" + "**Relevant Sources:**\n"
+            for i, doc in enumerate(sources):
                 content += f"- Source {i+1}: {doc.metadata['source']} (Page {doc.metadata['page']})\n"
+            complete_response = answer + content
                 
-            response = st.write_stream(stream_response(content)) 
-            st.session_state.chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": response}]
+            st.write_stream(stream_response(answer)) 
+            st.markdown(content)
+            st.session_state.chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
         else:
             st.write_stream(stream_response("Please upload your documents."))
     
@@ -87,11 +99,11 @@ def pdf_loader(docs):
         merge_docs.extend(documents) # Combine list of files 
         shutil.rmtree(temp_dir) #Delete temporary directory 
 
-    print(merge_docs)
+    # print(merge_docs)
     # vectorstore = Chroma.from_documents(merge_docs, embedding)
 
     # vectorstore_directory = "./"+file.name
-    save_vectorstore = Chroma.from_documents(merge_docs, embedding, persist_directory="./chroma_db")
+    # save_vectorstore = Chroma.from_documents(merge_docs, embedding, persist_directory="./chroma_db")
     load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding)
 
     retriever = load_vectorstore.as_retriever()
@@ -133,11 +145,10 @@ with st.sidebar:
         try: 
             if st.button("Process"):
                 with st.spinner("Processing"):
-                    print(docs)
-                    retriever = pdf_loader(docs)
-                    chain = get_ragchain(loaded_memory, retriever, llm)
-
                     if docs:
+                        retriever = pdf_loader(docs)
+                        st.session_state.chain = get_ragchain(loaded_memory, retriever, llm)
+
                         st.markdown("**Processed Files:**")
                         for doc in docs:
                             st.write('- ', doc.name)
@@ -197,7 +208,7 @@ with st.sidebar:
 
 # Process user prompt 
 if prompt := st.chat_input("Ask anything..."):
-    chat(prompt, docs, chain=None)
+    chat(prompt, docs, st.session_state.chain)
 
 # streamlit run prototype.py
 # C:\Users\Dell\AppData\Local\Temp\tmpwc1bhv2v.pdf
