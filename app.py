@@ -11,7 +11,8 @@ from langchain_core.runnables import RunnableLambda, RunnablePassthrough, Runnab
 from langchain.chains.summarize import load_summarize_chain
 
 from models import llms, embeddings
-from ragchain import combine_documents, CONDENSE_QUESTION_PROMPT, ANSWER_PROMPT, get_ragchain
+from ragchain import get_ragchain
+
 from dotenv import load_dotenv
 from operator import itemgetter
 import time
@@ -80,12 +81,18 @@ def pdf_loader(docs):
         shutil.rmtree(temp_dir) #Delete temporary directory 
 
     print(merge_docs)
-    vectorstore = Chroma.from_documents(merge_docs, embedding)
-    # save_vectorstore = Chroma.from_documents(documents, embedding, persist_directory="./chroma_db")
-    # load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding_function)
-    retriever = vectorstore.as_retriever()
+    # vectorstore = Chroma.from_documents(merge_docs, embedding)
+
+    # vectorstore_directory = "./"+file.name
+    save_vectorstore = Chroma.from_documents(merge_docs, embedding, persist_directory="./chroma_db")
+    load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding)
+
+    retriever = load_vectorstore.as_retriever()
 
     return retriever
+
+def csv_loader(df):
+    pass
 
 st.set_page_config(page_title="Document Chatbot", page_icon="✨")
 
@@ -135,11 +142,34 @@ with st.sidebar:
                     success.empty()
 
         except Exception as e:
-            error = st.error(f"Error uploading files:\n {str(e)}")
+            error = st.error(f"Error processing files:\n {str(e)}")
 
     if selected == "CSV":
         st.title(f"Chat with {selected}")
         uploaded_files = st.file_uploader(f"Upload your {selected} files here and click on **Process**", accept_multiple_files=True)
+
+        if uploaded_files is not None:
+            csv_files = [file for file in uploaded_files if file.type == "text/csv"] # Filter files to CSV 
+
+            seen = set()
+            docs = list()
+            for file in csv_files:
+                if file.name not in seen:
+                    seen.add(file.name)
+                    docs.append(file)
+        
+        try: 
+            if st.button("Process"):
+                with st.spinner("Processing"):
+                    print(docs)
+                
+                if docs:
+                    success = st.success("Files processed successfully")
+                    time.sleep(3)
+                    success.empty()
+
+        except Exception as e:
+            error = st.error(f"Error processing files:\n {str(e)}")
 
     if selected == "SQL":
         st.title(f"Chat with {selected}")
