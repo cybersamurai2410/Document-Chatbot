@@ -12,8 +12,11 @@ from langchain.chains.summarize import load_summarize_chain
 
 from models import llms, embeddings
 from ragchain import get_ragchain
+from dfchain import get_dfchain
 
 from dotenv import load_dotenv
+import pandas as pd
+import numpy as np
 from operator import itemgetter
 import time
 import os 
@@ -56,7 +59,11 @@ def chat(prompt, docs=[], chain=None):
     
     with st.chat_message("assistant"):
         if docs and chain is not None:
-            response = st.write_stream(stream_response(result["answer"].content)) 
+            content = result["answer"].content + "\n\n" + "Sources:\n"
+            for i, doc in enumerate(result["docs"]):
+                content += f"- Source {i+1}: {doc.metadata['source']} (Page {doc.metadata['page']})\n"
+                
+            response = st.write_stream(stream_response(content)) 
             st.session_state.chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": response}]
         else:
             st.write_stream(stream_response("Please upload your documents."))
@@ -91,10 +98,9 @@ def pdf_loader(docs):
 
     return retriever
 
-def csv_loader(df):
-    pass
-
 st.set_page_config(page_title="Document Chatbot", page_icon="✨")
+st.title("Document Chatbot 📚🤖")
+# st_placeholder = st.empty()
 
 with st.sidebar:
     url = "https://github.com/cybersamurai2410/Document-Chatbot/blob/main/README.md"
@@ -128,8 +134,8 @@ with st.sidebar:
             if st.button("Process"):
                 with st.spinner("Processing"):
                     print(docs)
-                    # retriever = pdf_loader(docs)
-                    # chain = get_ragchain(loaded_memory, retriever, llm)
+                    retriever = pdf_loader(docs)
+                    chain = get_ragchain(loaded_memory, retriever, llm)
 
                     if docs:
                         st.markdown("**Processed Files:**")
@@ -158,10 +164,21 @@ with st.sidebar:
                     seen.add(file.name)
                     docs.append(file)
         
-        try: 
+        try:
             if st.button("Process"):
                 with st.spinner("Processing"):
-                    print(docs)
+
+                    dataframes = {}
+                    if docs:
+                        st.markdown("**Processed Files:**")
+                        for doc in docs:
+                            st.markdown(f"*{doc.name}*")
+
+                            df = pd.read_csv(doc)
+                            dataframes[doc.name] = df
+                            st.write(df.head())
+
+                    get_dfchain(dataframes)
                 
                 if docs:
                     success = st.success("Files processed successfully")
@@ -178,7 +195,7 @@ with st.sidebar:
     if selected == "YouTube":
         st.title(f"Chat with {selected}")
 
-st.title("Document Chatbot 📚🤖")
+# Process user prompt 
 if prompt := st.chat_input("Ask anything..."):
     chat(prompt, docs, chain=None)
 
