@@ -35,17 +35,40 @@ memory = ConversationBufferMemory(return_messages=True, output_key="answer", inp
 loaded_memory = RunnablePassthrough.assign(
     chat_history = RunnableLambda(memory.load_memory_variables) | itemgetter("history") # Dictionary with history key after loading memory
 )
+# Ensure memory is seperate for each mode
 
-# if "chat_history" not in st.session_state:
-#         st.session_state.chat_history = []
-if "chain" not in st.session_state:
-    st.session_state.chain = None
+# Store conversation for each mode
+if "chat_histories" not in st.session_state:
+    st.session_state.chat_histories = {
+        "PDF": [],
+        "CSV": [],
+        "SQL": [],
+        "Webpage": [],
+        "YouTube": [],
+    }
 
-def chat(prompt, docs, chain):
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+# Store LLM chains 
+if 'chains' not in st.session_state:
+    st.session_state.chains = {
+        'PDF': None,
+        'CSV': None,
+        "SQL": None,
+        "Webpage": None,
+        "YouTube": None,
+    }
 
-    for message in st.session_state.chat_history:
+# Store list of processed files 
+if 'processed_files' not in st.session_state:
+    st.session_state.processed_files = {
+        'PDF': [],
+        'CSV': [],
+    }
+
+def chat(prompt, selected):
+    chat_history = st.session_state.chat_histories[selected]
+    chain = st.session_state.chains[selected]
+
+    for message in chat_history:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
@@ -76,11 +99,12 @@ def chat(prompt, docs, chain):
                 
             st.write_stream(stream_response(answer)) 
             st.markdown(content)
-            st.session_state.chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
+            chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
         else:
             st.write_stream(stream_response("Please upload your documents."))
     
-    print("Chat history: ", st.session_state.chat_history)
+    st.session_state.chat_histories[selected] = chat_history
+    print(f"Chat history [{selected}]: ", chat_history) # st.session_state..chat_history
 
 def pdf_loader(docs):
     merge_docs = []
@@ -128,7 +152,7 @@ with st.sidebar:
 
     if selected == "PDF":
         st.title(f"Chat with {selected}")
-        uploaded_files = st.file_uploader(f"Upload your {selected} files here and click on **Process**", accept_multiple_files=True)
+        uploaded_files = st.file_uploader(f"Upload your {selected} files here and click on **Process**", accept_multiple_files=True, key="pdf_uploader")
 
         if uploaded_files is not None:
             pdf_files = [file for file in uploaded_files if file.type == "application/pdf"] # Filter files to PDF 
@@ -140,18 +164,20 @@ with st.sidebar:
                 if file.name not in seen:
                     seen.add(file.name)
                     docs.append(file)
+        # uploaded_files = None
 
-        # Show names of files once processed
         try: 
             if st.button("Process"):
                 with st.spinner("Processing"):
                     if docs:
-                        retriever = pdf_loader(docs)
-                        st.session_state.chain = get_ragchain(loaded_memory, retriever, llm)
+                        # print("Loading PDF...")
+                        # retriever = pdf_loader(docs)
+                        # print("Retrieving chain...")
+                        # st.session_state.chains[selected] = get_ragchain(loaded_memory, retriever, llm)
+                        # chain = st.session_state.chains[selected]
+                        print(docs)
 
-                        st.markdown("**Processed Files:**")
-                        for doc in docs:
-                            st.write('- ', doc.name)
+                        st.session_state.processed_files[selected] = [doc.name for doc in docs]
                 
                 if docs:
                     success = st.success("Files processed successfully")
@@ -161,9 +187,15 @@ with st.sidebar:
         except Exception as e:
             error = st.error(f"Error processing files:\n {str(e)}")
 
+        print(f"{selected}: {st.session_state.processed_files[selected]}")
+        if st.session_state.processed_files[selected]:
+            st.markdown("**Processed Files:**")
+            for file_name in st.session_state.processed_files[selected]:
+                st.write('- ', file_name) 
+
     if selected == "CSV":
         st.title(f"Chat with {selected}")
-        uploaded_files = st.file_uploader(f"Upload your {selected} files here and click on **Process**", accept_multiple_files=True)
+        uploaded_files = st.file_uploader(f"Upload your {selected} files here and click on **Process**", accept_multiple_files=True, key="csv_uploader")
 
         if uploaded_files is not None:
             csv_files = [file for file in uploaded_files if file.type == "text/csv"] # Filter files to CSV 
@@ -181,15 +213,15 @@ with st.sidebar:
 
                     dataframes = {}
                     if docs:
-                        st.markdown("**Processed Files:**")
-                        for doc in docs:
-                            st.markdown(f"*{doc.name}*")
+                        st.session_state.processed_files[selected] = []
 
+                        for doc in docs:
                             df = pd.read_csv(doc)
                             dataframes[doc.name] = df
-                            st.write(df.head())
+                            st.session_state.processed_files[selected].append(doc)
 
-                    get_dfchain(dataframes)
+                        # print(docs)
+                        # get_dfchain(dataframes)
                 
                 if docs:
                     success = st.success("Files processed successfully")
@@ -198,6 +230,15 @@ with st.sidebar:
 
         except Exception as e:
             error = st.error(f"Error processing files:\n {str(e)}")
+
+        print(f"{selected}: {st.session_state.processed_files[selected]}")
+        if st.session_state.processed_files[selected]:
+            st.markdown("**Processed Files:**")
+            for doc in st.session_state.processed_files[selected]:
+                st.write('- ', doc.name)
+                doc.seek(0)
+                df = pd.read_csv(doc)
+                st.write(df.head())
 
     if selected == "SQL":
         st.title(f"Chat with {selected}")
@@ -208,7 +249,7 @@ with st.sidebar:
 
 # Process user prompt 
 if prompt := st.chat_input("Ask anything..."):
-    chat(prompt, docs, st.session_state.chain)
+    chat(prompt, selected) 
 
 # streamlit run prototype.py
 # C:\Users\Dell\AppData\Local\Temp\tmpwc1bhv2v.pdf
