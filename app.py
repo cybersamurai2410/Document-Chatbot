@@ -170,12 +170,10 @@ with st.sidebar:
             if st.button("Process"):
                 with st.spinner("Processing"):
                     if docs:
-                        # print("Loading PDF...")
-                        # retriever = pdf_loader(docs)
-                        # print("Retrieving chain...")
-                        # st.session_state.chains[selected] = get_ragchain(loaded_memory, retriever, llm)
-                        # chain = st.session_state.chains[selected]
-                        print(docs)
+                        print("Loading PDF...")
+                        retriever = pdf_loader(docs)
+                        print("Retrieving chain...")
+                        st.session_state.chains[selected] = get_ragchain(loaded_memory, retriever, llm)
 
                         st.session_state.processed_files[selected] = [doc.name for doc in docs]
                 
@@ -211,14 +209,14 @@ with st.sidebar:
             if st.button("Process"):
                 with st.spinner("Processing"):
 
-                    dataframes = {}
                     if docs:
+                        dataframes = {}
                         st.session_state.processed_files[selected] = []
 
                         for doc in docs:
                             df = pd.read_csv(doc)
                             dataframes[doc.name] = df
-                            st.session_state.processed_files[selected].append(doc)
+                            st.session_state.processed_files[selected].append(doc.name)
 
                         # print(docs)
                         # get_dfchain(dataframes)
