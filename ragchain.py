@@ -14,14 +14,16 @@ def combine_documents(
     return document_separator.join(doc_strings)
 
 # input_variables=['chat_history', 'question']
-template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question or else return the original question if there is no previous conversation.\n
+template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question if it is relevant to the chat history or else just return the original question.\n
 Chat History:
 {chat_history}
 Follow Up Input: {question}
 Standalone question:""" 
 CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(template)
 
-template = """Answer the question in a few sentences based only on the following context:
+template = """Answer the question in a few sentences based on the following context if it is relevant or else just use your own knowledge to answer the question but be transparent with the user.
+
+Context:
 {context}
 
 Question: {question}
@@ -38,7 +40,8 @@ def get_ragchain(loaded_memory, retriever, llm):
     | CONDENSE_QUESTION_PROMPT
     | llm
     | StrOutputParser()
-}
+    }
+    print(f"Standalone Question: {standalone_question}\n")
 
     retrieved_documents = {
         "docs": itemgetter("standalone_question") | retriever, # Retrieve list of sources 
