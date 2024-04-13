@@ -21,7 +21,7 @@ Follow Up Input: {question}
 Standalone question:""" 
 CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(template)
 
-template = """Answer the question in a few sentences based on the following context if it is relevant or else just use your own knowledge to answer the question but be transparent with the user.
+template = """Answer the question in a few sentences based on the following context if it is relevant or else just use your own knowledge to answer the question without referring to the context.
 
 Context:
 {context}
@@ -41,7 +41,6 @@ def get_ragchain(loaded_memory, retriever, llm):
     | llm
     | StrOutputParser()
     }
-    print(f"Standalone Question: {standalone_question}\n")
 
     retrieved_documents = {
         "docs": itemgetter("standalone_question") | retriever, # Retrieve list of sources 
@@ -56,6 +55,11 @@ def get_ragchain(loaded_memory, retriever, llm):
         "docs": itemgetter("docs")
     }
 
-    chain = loaded_memory | standalone_question | retrieved_documents | answer
+    # chain = loaded_memory | standalone_question | retrieved_documents | answer
+
+    standalone = loaded_memory | standalone_question
+    print(f"Standalone question: {standalone}\n") 
+
+    chain = standalone | retrieved_documents | answer
 
     return chain
