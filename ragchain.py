@@ -21,30 +21,33 @@ Follow Up Input: {question}
 Standalone question:""" 
 CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(template)
 
-template = """Answer the question in a few sentences based on the following context if it is relevant or else just use your own knowledge to answer the question without referring to the context.
+template = """Answer the question in a few sentences based on the following context if it is relevant or else use your own knowledge to answer the question.
 
 Context:
 {context}
 
 Question: {question}
 """
-ANSWER_PROMPT = ChatPromptTemplate.from_template(template)
+ANSWER_PROMPT = ChatPromptTemplate.from_template(template) 
 
 # RAG Chain for reading PDF files
 def get_ragchain(loaded_memory, retriever, llm):
+    # chat_history = lambda x: get_buffer_string(x["chat_history"])
+
     standalone_question = {
     "standalone_question": {
         "question": lambda x: x["question"],
         "chat_history": lambda x: get_buffer_string(x["chat_history"]) # Combine chat history as single string
     }
-    | CONDENSE_QUESTION_PROMPT
+    | CONDENSE_QUESTION_PROMPT # Passes {"question", "chat_history"}
     | llm
     | StrOutputParser()
     }
 
     retrieved_documents = {
-        "docs": itemgetter("standalone_question") | retriever, # Retrieve list of sources 
+        "docs": itemgetter("standalone_question") | retriever, # Retrieve list of sources passing just standalone question to retriever
         "question": lambda x: x["standalone_question"]
+        # "chat_history": itemgetter("chat_history")
     }
 
     answer = {
@@ -55,11 +58,6 @@ def get_ragchain(loaded_memory, retriever, llm):
         "docs": itemgetter("docs")
     }
 
-    # chain = loaded_memory | standalone_question | retrieved_documents | answer
-
-    standalone = loaded_memory | standalone_question
-    print(f"Standalone question: {standalone}\n") 
-
-    chain = standalone | retrieved_documents | answer
+    chain = loaded_memory | standalone_question | retrieved_documents | answer
 
     return chain

@@ -94,7 +94,8 @@ def chat(prompt, selected):
             
             content = "\n\n" + "**Relevant Sources:**\n"
             for i, doc in enumerate(sources):
-                content += f"- Source {i+1}: {doc.metadata['source']} (Page {doc.metadata['page']})\n"
+                file_name = os.path.basename(doc.metadata['source'])
+                content += f"- Source {i+1}: {file_name} (Page {doc.metadata['page']})\n"
             complete_response = answer + content
                 
             st.write_stream(stream_response(answer)) 
@@ -107,21 +108,21 @@ def chat(prompt, selected):
     print(f"Chat history [{selected}]: ", chat_history) # st.session_state..chat_history
 
 def pdf_loader(docs):
-    merge_docs = []
-    for file in docs:
-        temp_dir = tempfile.mkdtemp() # Create temporary directory 
-        temp_file_path = os.path.join(temp_dir, file.name) # Add file name in directory
+    # merge_docs = []
+    # for file in docs:
+    #     temp_dir = tempfile.mkdtemp() # Create temporary directory 
+    #     temp_file_path = os.path.join(temp_dir, file.name) # Add file name in directory
 
-        # Write file content in temp file
-        with open(temp_file_path, 'wb') as temp_file:
-            temp_file.write(file.getvalue())
+    #     # Write file content in temp file
+    #     with open(temp_file_path, 'wb') as temp_file:
+    #         temp_file.write(file.getvalue())
 
-        # Load and split content from PDF files
-        loader = PyPDFLoader(temp_file_path)  
-        documents = loader.load_and_split()
-        documents = documents[:3] 
-        merge_docs.extend(documents) # Combine list of files 
-        shutil.rmtree(temp_dir) #Delete temporary directory 
+    #     # Load and split content from PDF files
+    #     loader = PyPDFLoader(temp_file_path)  
+    #     documents = loader.load_and_split()
+    #     documents = documents[:3] 
+    #     merge_docs.extend(documents) # Combine list of files 
+    #     shutil.rmtree(temp_dir) #Delete temporary directory 
 
     # print(merge_docs)
     # vectorstore = Chroma.from_documents(merge_docs, embedding)
