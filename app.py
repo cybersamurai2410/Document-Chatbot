@@ -12,7 +12,7 @@ from langchain.chains.summarize import load_summarize_chain
 
 from models import llms, embeddings
 from ragchain import get_ragchain
-from dfchain import get_dfchain
+from dfchain import csv_tools, get_dfchain
 
 from dotenv import load_dotenv
 import pandas as pd
@@ -32,11 +32,11 @@ embedding = embeddings[llm_key]
 # summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
 # summary = summary_chain.invoke(merge_docs)
 
+# Memory is general to all chat modes
 memory = ConversationBufferMemory(return_messages=True, output_key="answer", input_key="question")
 loaded_memory = RunnablePassthrough.assign(
     chat_history = RunnableLambda(memory.load_memory_variables) | itemgetter("history") # Dictionary with history key after loading memory
 )
-# Ensure memory is seperate for each mode
 
 # Store conversation for each mode
 if "chat_histories" not in st.session_state:
