@@ -25,8 +25,9 @@ import tempfile
 import shutil
 
 load_dotenv()
-llm = llms['gemini-pro']
-embedding = embeddings["gemini-pro"]
+llm_key = "gemini-pro"
+llm = llms[llm_key]
+embedding = embeddings[llm_key]
 
 # summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
 # summary = summary_chain.invoke(merge_docs)
@@ -143,6 +144,14 @@ with st.sidebar:
     url = "https://github.com/cybersamurai2410/Document-Chatbot/blob/main/README.md"
     st.markdown("Made by **Aditya.S** 🌟")
     st.write("Read documentation [here](%s)" % url)
+
+    # llm_option = st.selectbox(
+    #     "Select your preferred LLM:",
+    #     options=list(llms.keys()),
+    #     index=0
+    # )
+    # st.markdown(f"**Model:** {llm_option}")
+    # llm = llms[llm_option]
 
     selected = option_menu(
         menu_title="Main Menu",
