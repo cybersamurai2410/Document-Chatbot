@@ -1,4 +1,5 @@
 from operator import itemgetter
+import streamlit as st
 
 from langchain import hub
 from langchain.agents import AgentExecutor, AgentType, Tool, tool, create_structured_chat_agent, create_react_agent
@@ -15,9 +16,9 @@ def get_dfchain(dataframes, llm):
     """Execute python code using pandas datframe."""
 
     pytool = PythonAstREPLTool(locals=dataframes)
-    # tools = [pytool]
-    # llm_with_tools = llm.bind(tools)
-
+    # llm_with_tools = llm.bind_tools([pytool], tool_choice=tool.name) # Supported by models with function calling
+    # chain = prompt | llm_with_tools | JsonOutputParser | tool
+    
     df_template = """```python
     {df_name}.head().to_markdown()
     >>> {df_head}
@@ -41,7 +42,7 @@ def get_dfchain(dataframes, llm):
 
     explainsolution_prompt = PromptTemplate.from_template(
         """Tell what the answer is first then explain briefly what calculation was used and provide analysis of the answer. \
-            Do not mention any coding syntax terms or variable names from the code. 
+            Do not mention any coding syntax terms or variable names from the code!
         
         Code:
         {code}
@@ -62,8 +63,8 @@ def get_dfchain(dataframes, llm):
     return solution_chain
 
 @tool
-def df_stats(dataframes):
-    """Get statistics of pandas dataframe."""
+def df_charts(dataframes):
+    """Display visualisations from pandas dataframe."""
     pass
 
 print("Executing chain...")
