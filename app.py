@@ -12,7 +12,7 @@ from langchain.chains.summarize import load_summarize_chain
 
 from models import llms, embeddings
 from ragchain import get_ragchain
-from dfchain import csv_tools, get_dfchain
+from dfchain import get_dfchain
 
 from dotenv import load_dotenv
 import pandas as pd
@@ -78,30 +78,43 @@ def chat(prompt, selected):
             yield word + " "
             time.sleep(0.05)
 
-    if chain is not None:
-        with st.spinner("Processing"):
-            question = {"question": prompt}
-            result = chain.invoke(question)
-            # print(result)
-            memory.save_context(question, {"answer": result["answer"].content}) 
-
     with st.chat_message("user"):
         st.markdown(prompt)
     
     with st.chat_message("assistant"):
         if chain is not None:
-            answer = result["answer"].content
-            sources = result["docs"]
+            with st.spinner("Processing"):
+                question = {"question": prompt}
+                result = chain.invoke(question)
             
-            content = "\n\n" + "**Relevant Sources:**\n"
-            for i, doc in enumerate(sources):
-                file_name = os.path.basename(doc.metadata['source'])
-                content += f"- Source {i+1}: {file_name} (Page {doc.metadata['page']})\n"
-            complete_response = answer + content
-                
-            st.write_stream(stream_response(answer)) 
-            st.markdown(content)
-            chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
+            # Format answers based on chat mode
+            if selected == "PDF":
+                answer = result["answer"].content
+                sources = result["docs"]
+                memory.save_context(question, {"answer": answer}) 
+
+                content = "\n\n" + "**Relevant Sources:**\n"
+                for i, doc in enumerate(sources):
+                    file_name = os.path.basename(doc.metadata['source'])
+                    content += f"- Source {i+1}: {file_name} (Page {doc.metadata['page']})\n"
+                complete_response = answer + content
+                    
+                st.write_stream(stream_response(answer)) 
+                st.markdown(content)
+                chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
+
+            if selected == "CSV":
+                content = f"""
+                Answer:
+                {result["answer"].strip()}
+
+                Explanation:
+                {result["explanation"].strip()}
+                """
+                st.markdown(content)
+                chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
+                memory.save_context(question, {"answer": content}) 
+
         else:
             st.write_stream(stream_response("Please upload your documents."))
     
@@ -228,8 +241,7 @@ with st.sidebar:
                             dataframes[doc.name] = df
                             st.session_state.processed_files[selected].append(doc.name)
 
-                        # print(docs)
-                        # get_dfchain(dataframes)
+                        st.session_state.chains[selected] = get_dfchain(dataframes, llm)
                 
                 if docs:
                     success = st.success("Files processed successfully")
