@@ -3,10 +3,13 @@ from langchain_community.chat_models.huggingface import ChatHuggingFace
 from langchain_community.chat_models import ChatOllama
 from langchain_community.embeddings import HuggingFaceEmbeddings, HuggingFaceInferenceAPIEmbeddings, OllamaEmbeddings
 
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI # Also used for TogetherAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import GoogleGenerativeAI, ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_cohere import ChatCohere, CohereEmbeddings # CohereRagRetriever, CohereRerank
+# from langchain_mistralai import ChatMistralAI
+# from langchain_google_vertexai import ChatVertexAI
+# from langchain_fireworks import ChatFireworks
 
 llms = {
     "gemini-pro": ChatGoogleGenerativeAI(model="gemini-pro", convert_system_message_to_human=True),
