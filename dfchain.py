@@ -8,16 +8,31 @@ from langchain.tools.render import render_text_description_and_args
 from langchain_experimental.tools import PythonAstREPLTool
 
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate, MessagesPlaceholder
+from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel, Runnable
 
-@tool
+tools = []
+def call_tools(msg: AIMessage) -> Runnable:
+    """Simple sequential tool calling helper."""
+
+    tool_map = {tool.name: tool for tool in tools} # Dictionary of all tools
+    tool_calls = msg.tool_calls.copy() # Copy list of tool calls
+
+    for tool_call in tool_calls:
+        tool_call["output"] = tool_map[tool_call["name"]].invoke(tool_call["args"]) # Execute tool with provided parameters and add to output key in dictionary
+
+    if not tool_calls:
+        return msg
+
+    return tool_calls
+
 def get_dfchain(dataframes, llm):
     """Execute python code using pandas datframe."""
 
     pytool = PythonAstREPLTool(locals=dataframes)
-    # llm_with_tools = llm.bind_tools([pytool], tool_choice=tool.name) # Supported by models with function calling
-    # chain = prompt | llm_with_tools | JsonOutputParser | tool
+    # llm_with_tools = llm.bind_tools([pytool]) # Supported by models with function calling
+    # chain = prompt | llm_with_tools | JsonOutputParser | pytool
     
     df_template = """```python
     {df_name}.head().to_markdown()
@@ -62,19 +77,12 @@ def get_dfchain(dataframes, llm):
 
     return solution_chain
 
-@tool
-def df_charts(dataframes):
-    """Display visualisations from pandas dataframe."""
-    pass
-
-print("Executing chain...")
-csv_tools = [get_dfchain]
-rendered_tools = render_text_description_and_args(csv_tools)
-prompt = hub.pull("hwchase17/react-json") # react-multi-input-json
-
-def execute_csvagent(llm, question):
-    agent = create_react_agent(prompt, llm, csv_tools) 
-    agent_executor = AgentExecutor(agent=agent, tools=csv_tools, verbose=True, max_iterations=5)
-    result = agent_executor.invoke({"input": question})
-
-    return result
+# print("Executing chain...")
+# csv_tools = [get_dfchain]
+# rendered_tools = render_text_description_and_args(csv_tools)
+# prompt = hub.pull("hwchase17/react-json") # react-multi-input-json
+# def execute_csvagent(llm, question):
+#     agent = create_react_agent(prompt, llm, csv_tools) 
+#     agent_executor = AgentExecutor(agent=agent, tools=csv_tools, verbose=True, max_iterations=5)
+#     result = agent_executor.invoke({"input": question})
+#     return result
