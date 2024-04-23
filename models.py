@@ -16,7 +16,7 @@ llms = {
     "claude-3-sonnet": ChatAnthropic(model_name="claude-3-sonnet-20240229", temperature=0),
     "cohere": ChatCohere(model="command", temperature=0), # command-r-plus
     "llama2": ChatOllama(model="llama2", temperature=0),
-    "gpt-3.5": 'openai'
+    "gpt-3.5": 'ChatOpenAI(temperature=0)'
 }  
 
 embeddings = {
