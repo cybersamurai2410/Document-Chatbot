@@ -5,9 +5,6 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
-# from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
-# from langchain.output_parsers import ResponseSchema, StructuredOutputParser
-# from langchain.tools.retriever import create_retriever_tool
 from langchain.chains.summarize import load_summarize_chain
 
 from models import llms, embeddings
@@ -17,6 +14,7 @@ from dfchain import get_dfchain
 from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from operator import itemgetter
 import time
 import os 
@@ -239,9 +237,9 @@ with st.sidebar:
                         for doc in docs:
                             df = pd.read_csv(doc)
                             dataframes[doc.name] = df
-                            st.session_state.processed_files[selected].append(doc.name)
+                            st.session_state.processed_files[selected].append(doc)
 
-                        st.session_state.chains[selected] = get_dfchain(dataframes, llm)
+                        # st.session_state.chains[selected] = get_dfchain(dataframes, llm)
                 
                 if docs:
                     success = st.success("Files processed successfully")
@@ -251,14 +249,41 @@ with st.sidebar:
         except Exception as e:
             error = st.error(f"Error processing files:\n {str(e)}")
 
-        print(f"{selected}: {st.session_state.processed_files[selected]}")
+        # print(f"{selected}: {st.session_state.processed_files[selected]}")
         if st.session_state.processed_files[selected]:
             st.markdown("**Processed Files:**")
             for doc in st.session_state.processed_files[selected]:
+                print(doc)
                 st.write('- ', doc.name)
                 doc.seek(0)
                 df = pd.read_csv(doc)
                 st.write(df.head())
+
+                st.markdown("**Data Visualisation:**")
+                plot_type = st.radio("Choose the type of plot", ["Line", "Bar"], key=f"plot_type_{doc.name}")
+
+                if plot_type == 'Line':
+                    x_column = st.selectbox("Choose the X-axis column", df.columns, key=f"x_col_{doc.name}")
+                    y_column = st.selectbox("Choose the Y-axis column", df.columns, key=f"y_col_{doc.name}")
+                    if st.button("Generate Line Plot", key=f"line_{doc.name}"):
+                        # st.line_chart(df[[x_column, y_column]])
+                        fig, ax = plt.subplots()
+                        ax.plot(df[x_column], df[y_column])
+                        ax.set_xlabel(x_column)
+                        ax.set_ylabel(y_column)
+                        ax.set_title(f"Line Plot of {y_column} vs {x_column}")
+                        st.pyplot(fig)
+
+                elif plot_type == 'Bar':
+                    x_column = st.selectbox("Choose the X-axis column", df.columns, key=f"x_col_{doc.name}")
+                    y_column = st.selectbox("Choose the Y-axis column", df.columns, key=f"y_col_{doc.name}")
+                    if st.button("Generate Bar Chart", key=f"bar_{doc.name}"):
+                        fig, ax = plt.subplots()
+                        ax.bar(df[x_column], df[y_column])
+                        ax.set_xlabel(x_column)
+                        ax.set_ylabel(y_column)
+                        ax.set_title(f"Bar Chart of {y_column} vs {x_column}")
+                        st.pyplot(fig)
 
     if selected == "SQL":
         st.title(f"Chat with {selected}")
@@ -271,6 +296,6 @@ with st.sidebar:
 if prompt := st.chat_input("Ask anything..."):
     chat(prompt, selected) 
 
-# streamlit run prototype.py
+# streamlit run app.py
 # C:\Users\Dell\AppData\Local\Temp\tmpwc1bhv2v.pdf
     
