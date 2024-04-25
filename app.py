@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader, WebBaseLoader, YoutubeLoader
 from langchain_community.vectorstores import Chroma
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
@@ -9,9 +9,9 @@ from langchain.chains.summarize import load_summarize_chain
 
 from models import llms, embeddings
 from ragchain import get_ragchain
-from dfchain import get_dfchain
+from dfchain import DataFrameToolChain
+# from urlchain import get_urlchain
 
-from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,7 +22,10 @@ from io import BytesIO, StringIO
 import tempfile
 import shutil
 
+from dotenv import load_dotenv
 load_dotenv()
+
+# Load default llm and embedding models
 llm_key = "gemini-pro"
 llm = llms[llm_key]
 embedding = embeddings[llm_key]
@@ -83,10 +86,10 @@ def chat(prompt, selected):
         if chain is not None:
             with st.spinner("Processing"):
                 question = {"question": prompt}
-                result = chain.invoke(question)
             
             # Format answers based on chat mode
             if selected == "PDF":
+                result = chain.invoke(question)
                 answer = result["answer"].content
                 sources = result["docs"]
                 memory.save_context(question, {"answer": answer}) 
@@ -102,19 +105,19 @@ def chat(prompt, selected):
                 chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
             if selected == "CSV":
-                content = f"""
-                Answer:
-                {result["answer"].strip()}
+                result = chain.invoke(question, {"chat_history": memory.load_memory_variables({})})
 
-                Explanation:
-                {result["explanation"].strip()}
-                """
-                st.markdown(content)
+                complete_response = ""
+                for tool_output in result:
+                    output = tool_output["output"]
+                    complete_response += str(output) + "\n"
+
+                st.markdown(complete_response)
                 chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
-                memory.save_context(question, {"answer": content}) 
+                memory.save_context(question, {"answer": complete_response}) 
 
         else:
-            st.write_stream(stream_response("Please upload your documents."))
+            st.write_stream(stream_response("Please upload your documents.")) 
     
     st.session_state.chat_histories[selected] = chat_history
     print(f"Chat history [{selected}]: ", chat_history) # st.session_state..chat_history
@@ -156,13 +159,13 @@ with st.sidebar:
     st.markdown("Made by **Aditya.S** 🌟")
     st.write("Read documentation [here](%s)" % url)
 
-    # llm_option = st.selectbox(
-    #     "Select your preferred LLM:",
-    #     options=list(llms.keys()),
-    #     index=0
-    # )
-    # st.markdown(f"**Model:** {llm_option}")
-    # llm = llms[llm_option]
+    llm_option = st.selectbox(
+        "Select your preferred LLM:",
+        options=list(llms.keys()),
+        index=0
+    )
+    st.markdown(f"**Model:** {llm_option}")
+    llm = llms[llm_option]
 
     selected = option_menu(
         menu_title="Main Menu",
@@ -185,7 +188,6 @@ with st.sidebar:
                 if file.name not in seen:
                     seen.add(file.name)
                     docs.append(file)
-        # uploaded_files = None
 
         try: 
             if st.button("Process"):
@@ -239,7 +241,8 @@ with st.sidebar:
                             dataframes[doc.name] = df
                             st.session_state.processed_files[selected].append(doc)
 
-                        # st.session_state.chains[selected] = get_dfchain(dataframes, llm)
+                        dfchain = DataFrameToolChain(dataframes, llm)
+                        st.session_state.chains[selected] = dfchain.get_dfchain()
                 
                 if docs:
                     success = st.success("Files processed successfully")
@@ -287,10 +290,18 @@ with st.sidebar:
 
     if selected == "SQL":
         st.title(f"Chat with {selected}")
+
     if selected == "Webpage":
         st.title(f"Chat with {selected}")
+        # url = ""
+        # loader = WebBaseLoader(url)
+        # data = loader.load()
+
     if selected == "YouTube":
         st.title(f"Chat with {selected}")
+        # url = ""
+        # loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
+        # data = loader.load()
 
 # Process user prompt 
 if prompt := st.chat_input("Ask anything..."):
