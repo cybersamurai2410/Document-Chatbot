@@ -1,7 +1,12 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 
-from langchain_community.document_loaders import PyPDFLoader, WebBaseLoader, YoutubeLoader
+from langchain_community.document_loaders import (
+    PyPDFLoader, 
+    WebBaseLoader, YoutubeLoader, 
+    AsyncHtmlLoader, Html2TextTransformer 
+)
+
 from langchain_community.vectorstores import Chroma
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
@@ -293,15 +298,43 @@ with st.sidebar:
 
     if selected == "Webpage":
         st.title(f"Chat with {selected}")
-        # url = ""
-        # loader = WebBaseLoader(url)
-        # data = loader.load()
+        url = st.text_input("Enter URL: ")
 
-    if selected == "YouTube":
+        if 'urls' not in st.session_state:
+            st.session_state.urls = []
+
+        if st.button("Add URL"):
+            if url not in st.session_state.urls and url != "":
+                st.session_state.urls.append(url)
+                st.success("URL added to list")
+            else:
+                st.error("URL is already in the list or is empty")
+        
+        if st.session_state.urls:
+            st.write("URLs to process:")
+
+            for u in st.session_state.urls:
+                st.write('-', u)
+
+        if st.button("Process"):
+            with st.spinner("Processing"):
+                try:
+                    loader = WebBaseLoader(st.session_state.urls)
+                    docs = loader.load()
+                    print(docs)
+
+                    success = st.success("Files processed successfully")
+                    time.sleep(3)
+                    success.empty()
+
+                except Exception as e:
+                    error = st.error(f"Error processing URLs:\n {str(e)}")
+
+    if selected == "YouTube": 
         st.title(f"Chat with {selected}")
-        # url = ""
-        # loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
-        # data = loader.load()
+        url = ""
+        loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
+        docs = loader.load()
 
 # Process user prompt 
 if prompt := st.chat_input("Ask anything..."):
