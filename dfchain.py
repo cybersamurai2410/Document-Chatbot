@@ -1,88 +1,78 @@
 from operator import itemgetter
-import streamlit as st
 
 from langchain import hub
-from langchain.agents import AgentExecutor, AgentType, Tool, tool, create_structured_chat_agent, create_react_agent
+from langchain.agents import AgentExecutor, AgentType, Tool, tool
+from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent, create_csv_agent
 from langchain.tools import BaseTool
 from langchain.tools.render import render_text_description_and_args
 from langchain_experimental.tools import PythonAstREPLTool
 
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate, MessagesPlaceholder
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel, Runnable
 
-tools = []
-def call_tools(msg: AIMessage) -> Runnable:
-    """Simple sequential tool calling helper."""
+class DataFrameToolChain:
+    def __init__(self, dataframes, llm):
+        self.dataframes = dataframes # Dictionary of pandas dataframes
+        self.llm = llm
+        self.tools = [PythonAstREPLTool(locals=self.dataframes)] # List of tools
+        self.llm_with_tools = self.llm.bind_tools(self.tools) # Integrate tools with LLM that support tool calling
 
-    tool_map = {tool.name: tool for tool in tools} # Dictionary of all tools
-    tool_calls = msg.tool_calls.copy() # Copy list of tool calls
+    def call_tools(self, msg: AIMessage) -> dict:
+        """Simple sequential tool calling helper."""
 
-    for tool_call in tool_calls:
-        tool_call["output"] = tool_map[tool_call["name"]].invoke(tool_call["args"]) # Execute tool with provided parameters and add to output key in dictionary
+        tool_map = {tool.name: tool for tool in self.tools} # Dictionary of all tools
+        tool_calls = msg.tool_calls.copy() # Copy list of tool calls
+        print(tool_calls)
 
-    if not tool_calls:
-        return msg
-
-    return tool_calls
-
-def get_dfchain(dataframes, llm):
-    """Execute python code using pandas datframe."""
-
-    pytool = PythonAstREPLTool(locals=dataframes)
-    # llm_with_tools = llm.bind_tools([pytool]) # Supported by models with function calling
-    # chain = prompt | llm_with_tools | JsonOutputParser | pytool
-    
-    df_template = """```python
-    {df_name}.head().to_markdown()
-    >>> {df_head}
-    ```"""
-
-    df_context = "\n\n".join(
-        df_template.format(df_head=df.head().to_markdown(), df_name=df_name)
-        for df_name, df in dataframes.items()
-    )
-    print(df_context)
-
-    system = f"""You have access to a number of pandas dataframes. \
-    Here is a sample of rows from each dataframe and the python code that was used to generate the sample:
-
-    {df_context}
-
-    Given a user question about the dataframes, write the Python code to answer it. \
-    Don't assume you have access to any libraries other than built-in Python ones and pandas. \
-    Make sure to refer only to the variables mentioned above."""
-    prompt = ChatPromptTemplate.from_messages([("system", system), ("human", "{question}")])
-
-    explainsolution_prompt = PromptTemplate.from_template(
-        """Tell what the answer is first then explain briefly what calculation was used and provide analysis of the answer. \
-            Do not mention any coding syntax terms or variable names from the code!
+        for tool_call in tool_calls:
+            tool_call["output"] = tool_map[tool_call["name"]].invoke(tool_call["args"]) # Execute tool with provided parameters and add to output key in dictionary
         
-        Code:
-        {code}
+        return tool_calls
+
+    def get_dfchain(self):
+        df_template = """```python
+        {df_name}.head().to_markdown()
+        >>> {df_head}
+        ```"""
+
+        # Format dataframes for prompt
+        df_context = "\n\n".join(
+            df_template.format(df_head=df.head().to_markdown(), df_name=df_name)
+            for df_name, df in self.dataframes.items()
+        )
+        print(df_context)
+
+        system = f"""You have access to a number of pandas dataframes. \
+        Here is a sample of rows from each dataframe and the python code that was used to generate the sample:
+
+        {df_context}
+
+        Given a user question about the dataframes, write the Python code to answer it. \
+        Don't assume you have access to any libraries other than built-in Python ones and pandas. \
+        Make sure to refer only to the variables mentioned above."""
         
-        Answer:
-        {answer}"""
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", system), 
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("human", "{question}")
+            ]
+        )
+
+        chain = prompt | self.llm_with_tools | self.call_tools
+
+        return chain
+
+# chain = DataFrameToolChain(dataframes, llm)
+# result = chain.invoke({"question":xyz, "chat_history":memory.load_memory_variables({})})
+
+def df_agent(llm, paths, question):
+    agent = create_csv_agent(
+        llm,
+        paths, 
+        agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        verbose=True
     )
-
-    code_chain = prompt | llm | StrOutputParser()
-    solution_chain = (
-    RunnablePassthrough.assign(code=code_chain)
-    .assign(answer=itemgetter("code") | pytool)
-    .assign(explanation = {"code": itemgetter("code"), "answer": itemgetter("answer")} | explainsolution_prompt | llm) 
-    .pick(["code", "answer", "explanation"])
-    )
-    # solution = solution_chain.invoke({"question": question})
-
-    return solution_chain
-
-# print("Executing chain...")
-# csv_tools = [get_dfchain]
-# rendered_tools = render_text_description_and_args(csv_tools)
-# prompt = hub.pull("hwchase17/react-json") # react-multi-input-json
-# def execute_csvagent(llm, question):
-#     agent = create_react_agent(prompt, llm, csv_tools) 
-#     agent_executor = AgentExecutor(agent=agent, tools=csv_tools, verbose=True, max_iterations=5)
-#     result = agent_executor.invoke({"input": question})
-#     return result
+    return agent.invoke(question)
