@@ -4,8 +4,9 @@ from streamlit_option_menu import option_menu
 from langchain_community.document_loaders import (
     PyPDFLoader, 
     WebBaseLoader, YoutubeLoader, 
-    AsyncHtmlLoader, Html2TextTransformer 
+    AsyncHtmlLoader 
 )
+from langchain_community.document_transformers import Html2TextTransformer
 
 from langchain_community.vectorstores import Chroma
 from langchain.memory import ConversationBufferMemory
@@ -26,6 +27,10 @@ import os
 from io import BytesIO, StringIO
 import tempfile
 import shutil
+
+import validators
+from bs4 import BeautifulSoup
+import requests
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -304,14 +309,17 @@ with st.sidebar:
             st.session_state.urls = []
 
         if st.button("Add URL"):
-            if url not in st.session_state.urls and url != "":
+            if url not in st.session_state.urls and validators.url(url):
                 st.session_state.urls.append(url)
-                st.success("URL added to list")
+                
+                success = st.success("URL added")
+                time.sleep(1)
+                success.empty()
             else:
-                st.error("URL is already in the list or is empty")
+                st.error("URL is already added or is invalid")
         
         if st.session_state.urls:
-            st.write("URLs to process:")
+            st.write("URLs List:")
 
             for u in st.session_state.urls:
                 st.write('-', u)
@@ -323,8 +331,8 @@ with st.sidebar:
                     docs = loader.load()
                     print(docs)
 
-                    success = st.success("Files processed successfully")
-                    time.sleep(3)
+                    success = st.success("URLs processed successfully")
+                    time.sleep(1)
                     success.empty()
 
                 except Exception as e:
