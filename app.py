@@ -94,7 +94,7 @@ def chat(prompt, selected):
     
     with st.chat_message("assistant"):
         if chain is not None:
-            with st.spinner("Processing"):
+            with st.spinner("Thinking..."):
                 question = {"question": prompt}
             
                 # Format answers based on chat mode
@@ -303,40 +303,45 @@ with st.sidebar:
 
     if selected == "Webpage":
         st.title(f"Chat with {selected}")
-        url = st.text_input("Enter URL: ")
+        on = st.toggle("Toggle to manually enter URL")
 
-        if 'urls' not in st.session_state:
-            st.session_state.urls = []
+        if on:
+            url = st.text_input("Enter URL: ")
 
-        if st.button("Add URL"):
-            if url not in st.session_state.urls and validators.url(url):
-                st.session_state.urls.append(url)
-                
-                success = st.success("URL added")
-                time.sleep(1)
-                success.empty()
-            else:
-                st.error("URL is already added or is invalid")
-        
-        if st.session_state.urls:
-            st.write("URLs List:")
+            if 'urls' not in st.session_state:
+                st.session_state.urls = []
 
-            for u in st.session_state.urls:
-                st.write('-', u)
-
-        if st.button("Process"):
-            with st.spinner("Processing"):
-                try:
-                    loader = WebBaseLoader(st.session_state.urls)
-                    docs = loader.load()
-                    print(docs)
-
-                    success = st.success("URLs processed successfully")
+            if st.button("Add URL"):
+                if url not in st.session_state.urls and validators.url(url):
+                    st.session_state.urls.append(url)
+                    
+                    success = st.success("URL added")
                     time.sleep(1)
                     success.empty()
+                else:
+                    st.error("URL is already added or is invalid")
+            
+            if st.session_state.urls:
+                st.write("URLs List:")
 
-                except Exception as e:
-                    error = st.error(f"Error processing URLs:\n {str(e)}")
+                for u in st.session_state.urls:
+                    st.write('-', u)
+
+            if st.button("Process"):
+                with st.spinner("Processing"):
+                    try:
+                        loader = WebBaseLoader(st.session_state.urls)
+                        docs = loader.load()
+                        print(docs)
+
+                        success = st.success("URLs processed successfully")
+                        time.sleep(1)
+                        success.empty()
+
+                    except Exception as e:
+                        error = st.error(f"Error processing URLs:\n {str(e)}")
+        else:
+            st.markdown("✨ *Enter your prompt and query based on knowledge retrieved from websearch.*")
 
     if selected == "YouTube": 
         st.title(f"Chat with {selected}")
