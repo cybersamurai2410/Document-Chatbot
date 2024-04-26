@@ -97,40 +97,41 @@ def chat(prompt, selected):
             with st.spinner("Processing"):
                 question = {"question": prompt}
             
-            # Format answers based on chat mode
-            if selected == "PDF":
-                result = chain.invoke(question)
-                answer = result["answer"].content
-                sources = result["docs"]
-                memory.save_context(question, {"answer": answer}) 
+                # Format answers based on chat mode
+                if selected == "PDF":
+                    result = chain.invoke(question)
+                    answer = result["answer"].content
+                    sources = result["docs"]
+                    memory.save_context(question, {"answer": answer}) 
+                    print(result)
 
-                content = "\n\n" + "**Relevant Sources:**\n"
-                for i, doc in enumerate(sources):
-                    file_name = os.path.basename(doc.metadata['source'])
-                    content += f"- Source {i+1}: {file_name} (Page {doc.metadata['page']})\n"
-                complete_response = answer + content
-                    
-                st.write_stream(stream_response(answer)) 
-                st.markdown(content)
-                chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
+                    content = "\n\n" + "**Relevant Sources:**\n"
+                    for i, doc in enumerate(sources):
+                        file_name = os.path.basename(doc.metadata['source'])
+                        content += f"- Source {i+1}: {file_name} (Page {doc.metadata['page']})\n"
+                    complete_response = answer + content
+                        
+                    st.write_stream(stream_response(answer)) 
+                    st.markdown(content)
+                    chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
-            if selected == "CSV":
-                result = chain.invoke(question, {"chat_history": memory.load_memory_variables({})})
+                if selected == "CSV":
+                    result = chain.invoke(question, {"chat_history": memory.load_memory_variables({})})
 
-                complete_response = ""
-                for tool_output in result:
-                    output = tool_output["output"]
-                    complete_response += str(output) + "\n"
+                    complete_response = ""
+                    for tool_output in result:
+                        output = tool_output["output"]
+                        complete_response += str(output) + "\n"
 
-                st.markdown(complete_response)
-                chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
-                memory.save_context(question, {"answer": complete_response}) 
+                    st.markdown(complete_response)
+                    chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
+                    memory.save_context(question, {"answer": complete_response}) 
 
         else:
             st.write_stream(stream_response("Please upload your documents.")) 
     
     st.session_state.chat_histories[selected] = chat_history
-    print(f"Chat history [{selected}]: ", chat_history) # st.session_state..chat_history
+    # print(f"Chat history [{selected}]: ", chat_history) # st.session_state..chat_history
 
 def pdf_loader(docs):
     # merge_docs = []
@@ -156,7 +157,7 @@ def pdf_loader(docs):
     # save_vectorstore = Chroma.from_documents(merge_docs, embedding, persist_directory="./chroma_db")
     load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding)
 
-    retriever = load_vectorstore.as_retriever()
+    retriever = load_vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
 
     return retriever
 
@@ -206,13 +207,12 @@ with st.sidebar:
                         print("Loading PDF...")
                         retriever = pdf_loader(docs)
                         print("Retrieving chain...")
-                        st.session_state.chains[selected] = get_ragchain(loaded_memory, retriever, llm)
-
                         st.session_state.processed_files[selected] = [doc.name for doc in docs]
+                        st.session_state.chains[selected] = get_ragchain(loaded_memory, retriever, llm, st.session_state.processed_files[selected])
                 
                 if docs:
                     success = st.success("Files processed successfully")
-                    time.sleep(3)
+                    time.sleep(1)
                     success.empty()
 
         except Exception as e:
@@ -256,7 +256,7 @@ with st.sidebar:
                 
                 if docs:
                     success = st.success("Files processed successfully")
-                    time.sleep(3)
+                    time.sleep(1)
                     success.empty()
 
         except Exception as e:
