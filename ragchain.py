@@ -35,7 +35,6 @@ ANSWER_PROMPT = ChatPromptTemplate.from_template(template)
 
 # RAG Chain for reading PDF files
 def get_ragchain(loaded_memory, retriever, llm, files):
-    print(llm)
 
     standalone_question = {
     "standalone_question": {
@@ -63,5 +62,6 @@ def get_ragchain(loaded_memory, retriever, llm, files):
 
     # Only runnables and dicts can be passed in pipeline
     chain = loaded_memory | standalone_question | retrieved_documents | answer
+    # print(chain) 
 
     return chain
