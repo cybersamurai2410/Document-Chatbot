@@ -8,7 +8,7 @@ from langchain_community.document_loaders import (
 )
 from langchain_community.document_transformers import Html2TextTransformer
 
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma, FAISS 
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
 from langchain.chains.summarize import load_summarize_chain
@@ -134,7 +134,7 @@ def chat(prompt, selected):
     # print(f"Chat history [{selected}]: ", chat_history) # st.session_state..chat_history
 
 def pdf_loader(docs):
-    # merge_docs = []
+    merge_docs = []
     # for file in docs:
     #     temp_dir = tempfile.mkdtemp() # Create temporary directory 
     #     temp_file_path = os.path.join(temp_dir, file.name) # Add file name in directory
@@ -150,13 +150,23 @@ def pdf_loader(docs):
     #     merge_docs.extend(documents) # Combine list of files 
     #     shutil.rmtree(temp_dir) #Delete temporary directory 
 
-    # print(merge_docs)
-    # vectorstore = Chroma.from_documents(merge_docs, embedding)
+    # index_name = "faiss_index"
+    # try:
+    #     vectorstore = FAISS.load_local(index_name, embedding)
+    #     update_vectorstore = FAISS.from_documents(merge_docs, embedding)
+    #     vectorstore.merge_from(update_vectorstore)
+    #     print("Existing vectorstore loaded...")
+    # except Exception as e:
+    #     print("No existing vectorstore found, creating a new one...")
+    #     vectorstore = FAISS.from_documents(merge_docs, embedding)
 
-    # vectorstore_directory = "./"+file.name
+    # print(f"Vectorstore saved with {vectorstore.index.ntotal} total entries.")
+    # retreiver = vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
+    # vectorstore.save_local(index_name)
+
+    # vectorstore = Chroma.from_documents(merge_docs, embedding)
     # save_vectorstore = Chroma.from_documents(merge_docs, embedding, persist_directory="./chroma_db")
     load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding)
-
     retriever = load_vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
 
     return retriever
@@ -193,8 +203,8 @@ with st.sidebar:
             pdf_files = [file for file in uploaded_files if file.type == "application/pdf"] # Filter files to PDF 
 
             # Remove duplicate files
-            seen = set()
-            docs = list()
+            seen = set(st.session_state.processed_files[selected])
+            docs = []
             for file in pdf_files:
                 if file.name not in seen:
                     seen.add(file.name)
@@ -204,16 +214,16 @@ with st.sidebar:
             if st.button("Process"):
                 with st.spinner("Processing"):
                     if docs:
+                        print(docs)
                         print("Loading PDF...")
-                        retriever = pdf_loader(docs)
+                        retriever = pdf_loader(docs) 
                         print("Retrieving chain...")
-                        st.session_state.processed_files[selected] = [doc.name for doc in docs]
+                        st.session_state.processed_files[selected].extend([doc.name for doc in docs])
                         st.session_state.chains[selected] = get_ragchain(loaded_memory, retriever, llm, st.session_state.processed_files[selected])
                 
-                if docs:
-                    success = st.success("Files processed successfully")
-                    time.sleep(1)
-                    success.empty()
+                        success = st.success("Files processed successfully")
+                        time.sleep(1)
+                        success.empty()
 
         except Exception as e:
             error = st.error(f"Error processing files:\n {str(e)}")
