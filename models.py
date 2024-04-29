@@ -34,4 +34,5 @@ local models:
 huggingface:
 "hf_gemma-7b-it": HuggingFaceHub(repo_id="google/gemma-7b-it"),
 "hf_gemma-7b-it": HuggingFaceEmbeddings(),
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 '''
