@@ -163,6 +163,7 @@ def pdf_loader(docs):
     # print(f"Vectorstore saved with {vectorstore.index.ntotal} total entries.")
     # retreiver = vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
     # vectorstore.save_local(index_name)
+    # vectorstore.delete([db.index_to_docstore_id[0]])
 
     # vectorstore = Chroma.from_documents(merge_docs, embedding)
     # save_vectorstore = Chroma.from_documents(merge_docs, embedding, persist_directory="./chroma_db")
@@ -241,8 +242,8 @@ with st.sidebar:
         if uploaded_files is not None:
             csv_files = [file for file in uploaded_files if file.type == "text/csv"] # Filter files to CSV 
 
-            seen = set()
-            docs = list()
+            seen = set(st.session_state.processed_files[selected])
+            docs = []
             for file in csv_files:
                 if file.name not in seen:
                     seen.add(file.name)
@@ -344,6 +345,8 @@ with st.sidebar:
                         docs = loader.load()
                         print(docs)
 
+                        #chain = get_urlchain()
+
                         success = st.success("URLs processed successfully")
                         time.sleep(1)
                         success.empty()
@@ -352,12 +355,16 @@ with st.sidebar:
                         error = st.error(f"Error processing URLs:\n {str(e)}")
         else:
             st.markdown("✨ *Enter your prompt and query based on knowledge retrieved from websearch.*")
+            
+            # websearch_chain()
 
     if selected == "YouTube": 
         st.title(f"Chat with {selected}")
         url = ""
         loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
         docs = loader.load()
+
+        # https://python.langchain.com/docs/modules/chains/
 
 # Process user prompt 
 if prompt := st.chat_input("Ask anything..."):
