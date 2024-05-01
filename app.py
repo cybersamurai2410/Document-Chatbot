@@ -16,7 +16,7 @@ from langchain.chains.summarize import load_summarize_chain
 from models import llms, embeddings
 from ragchain import get_ragchain
 from dfchain import DataFrameToolChain
-# from urlchain import get_urlchain
+from urlchain import get_ragagent, websearch_chain
 
 import pandas as pd
 import numpy as np
@@ -345,7 +345,7 @@ with st.sidebar:
                         docs = loader.load()
                         print(docs)
 
-                        #chain = get_urlchain()
+                        #st.session_state.chains[selected] = get_urlchain()
 
                         success = st.success("URLs processed successfully")
                         time.sleep(1)
@@ -355,8 +355,7 @@ with st.sidebar:
                         error = st.error(f"Error processing URLs:\n {str(e)}")
         else:
             st.markdown("✨ *Enter your prompt and query based on knowledge retrieved from websearch.*")
-            
-            # websearch_chain()
+            st.session_state.chains[selected] = websearch_chain(llm)
 
     if selected == "YouTube": 
         st.title(f"Chat with {selected}")
