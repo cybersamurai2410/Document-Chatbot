@@ -16,7 +16,7 @@ class DataFrameToolChain:
     def __init__(self, dataframes, llm):
         self.dataframes = dataframes # Dictionary of pandas dataframes
         self.llm = llm
-        self.tools = [PythonAstREPLTool(locals=self.dataframes)] # List of tools
+        self.tools = [PythonAstREPLTool(locals=self.dataframes)] # List of tools; include another tool for general queries
         self.llm_with_tools = self.llm.bind_tools(self.tools) # Integrate tools with LLM that support tool calling
 
     def call_tools(self, msg: AIMessage) -> dict:
