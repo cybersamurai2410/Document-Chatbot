@@ -28,15 +28,15 @@ def get_ragagent(llm, retriever):
     tools = []
     retriever_tool = create_retriever_tool(
     retriever = retriever,
-    name = "webpages", # Group name or url list
-    description = "Information from corpuses for webpages.", # Summary of webpages 
+    name = "webpages", # Modify -> Group name or url list
+    description = "Information from corpuses for webpages.", # Modify -> Summary of webpages 
     )
-    tools.append(retriever_tool) # Loop retriever for different groups of urls then add to tools list
+    tools.append(retriever_tool) # Modify -> Loop retriever for different groups of urls then add to tools list
 
     agent = create_structured_chat_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
-    return agent_executor
+    return agent_executor # agent_executor.invoke({"input": "what is LangChain?"})
 
 def websearch_chain(llm):
     # search = GoogleSearchAPIWrapper(k=1)
@@ -64,8 +64,43 @@ def websearch_chain(llm):
 
     return chain 
 
-def youtube_chain(llm, retreiver):
-    pass
+def youtube_chain(llm, retriever):
+
+    # Contextualize question
+    contextualize_q_system_prompt = """Given a chat history and the latest user question \
+    which might reference context in the chat history, formulate a standalone question \
+    which can be understood without the chat history. Do NOT answer the question, \
+    just reformulate it if needed and otherwise return it as is."""
+    contextualize_q_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", contextualize_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    history_aware_retriever = create_history_aware_retriever(
+        llm, retriever, contextualize_q_prompt
+    )
+
+    # Answer question
+    qa_system_prompt = """You are an assistant for question-answering tasks. \
+    Use the following pieces of retrieved context to answer the question. \
+    If you don't know the answer, just say that you don't know. \
+    Use three sentences maximum and keep the answer concise.\
+
+    {context}"""
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", qa_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{question}"),
+        ]
+    )
+
+    document_chain = create_stuff_documents_chain(llm, qa_prompt)
+    retrieval_chain = create_retrieval_chain(history_aware_retriever, document_chain)
+
+    return retrieval_chain
 
 # question = "what are the results of the last ufc event?"
 # chain = websearch_chain(llm)
