@@ -1,6 +1,6 @@
 from operator import itemgetter
 
-from langchain.agents import AgentExecutor, AgentType, Tool, tool
+from langchain.agents import AgentExecutor, AgentType, Tool, tool, create_structured_chat_agent
 from langchain_community.tools import DuckDuckGoSearchResults
 
 from langchain_core.documents import Document
@@ -10,37 +10,33 @@ from langchain.chains import (
     create_retrieval_chain,
 )
 
+from langchain import hub
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel, Runnable
 from langchain.tools.retriever import create_retriever_tool
 
-from dotenv import load_dotenv
-load_dotenv()
-
-from models import llms
-llm = llms["groq-llama3_8b"]
-
 import asyncio
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # RAG Agent 
-def get_ragagent(loaded_memory, llm, retriever):
+def get_ragagent(llm, retriever):
     
-    prompt = ""
+    prompt = hub.pull("hwchase17/structured-chat-agent")
 
     tools = []
     retriever_tool = create_retriever_tool(
     retriever = retriever,
-    name = "webpage title",
-    description = "summary of webpage"
+    name = "webpages", # Group name or url list
+    description = "Information from corpuses for webpages.", # Summary of webpages 
     )
     tools.append(retriever_tool) # Loop retriever for different groups of urls then add to tools list
 
-    # agent = create_openai_tools_agent(llm, tools, prompt)
-    # agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-    # return agent_executor
+    agent = create_structured_chat_agent(llm, tools, prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+    return agent_executor
 
 def websearch_chain(llm):
     # search = GoogleSearchAPIWrapper(k=1)
