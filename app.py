@@ -8,10 +8,12 @@ from langchain_community.document_loaders import (
 )
 from langchain_community.document_transformers import Html2TextTransformer
 
-from langchain_community.vectorstores import Chroma, FAISS 
+from langchain_community.vectorstores import Chroma, FAISS
+from langchain_text_splitters import RecursiveCharacterTextSplitter 
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
 from langchain.chains.summarize import load_summarize_chain
+from langchain.tools.retriever import create_retriever_tool
 
 from models import llms, embeddings
 from ragchain import get_ragchain
@@ -39,9 +41,6 @@ load_dotenv()
 llm_key = "gemini-pro"
 llm = llms[llm_key]
 embedding = embeddings[llm_key]
-
-# summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
-# summary = summary_chain.invoke(merge_docs)
 
 # Memory is general to all chat modes
 memory = ConversationBufferMemory(return_messages=True, output_key="answer", input_key="question")
@@ -127,6 +126,17 @@ def chat(prompt, selected):
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
                     memory.save_context(question, {"answer": complete_response}) 
 
+                if selected == "Webpage":
+                    result = chain.invoke(question)
+
+                    for item in result["answer"]:
+                        link = item["link"]
+                        description = item["snippet"]
+                        st.markdown(f"Link: {link}")
+                        st.write_stream(stream_response(f"Description: {description}\n"))
+
+                if selected == "Youtube":
+                    result = chain.invoke(question)
         else:
             st.write_stream(stream_response("Please upload your documents.")) 
     
@@ -322,6 +332,9 @@ with st.sidebar:
             if 'urls' not in st.session_state:
                 st.session_state.urls = []
 
+            if 'url_groups' not in st.session_state:
+                st.session_state.url_groups = {}
+
             if st.button("Add URL"):
                 if url not in st.session_state.urls and validators.url(url):
                     st.session_state.urls.append(url)
@@ -334,7 +347,6 @@ with st.sidebar:
             
             if st.session_state.urls:
                 st.write("URLs List:")
-
                 for u in st.session_state.urls:
                     st.write('-', u)
 
@@ -343,9 +355,13 @@ with st.sidebar:
                     try:
                         loader = WebBaseLoader(st.session_state.urls)
                         docs = loader.load()
-                        print(docs)
 
-                        #st.session_state.chains[selected] = get_urlchain()
+                        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+                        doc_splits = text_splitter.split_documents(docs)
+                        print(doc_splits)
+                        retriever = FAISS.from_documents(doc_splits, embeddings).as_retriever()
+
+                        st.session_state.chains[selected] = get_ragagent(llm, retriever)
 
                         success = st.success("URLs processed successfully")
                         time.sleep(1)
@@ -359,11 +375,23 @@ with st.sidebar:
 
     if selected == "YouTube": 
         st.title(f"Chat with {selected}")
-        url = ""
-        loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
-        docs = loader.load()
+        url = st.text_input("Enter URL: ")
+        if st.button("Process"):
+            with st.spinner("Processing"):
+                try:
+                    st.write(f"URL: {url}")
+                    st.video(url, subtitles="subtitles.vtt") # Display youtube video
 
-        # https://python.langchain.com/docs/modules/chains/
+                    loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
+                    docs = loader.load()
+
+                    # Generate summary  
+                    summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
+                    summary = summary_chain.invoke(docs)
+                    st.markdown(f"*Summary:* \n{summary}")
+
+                except Exception as e:
+                            error = st.error(f"Error processing URL:\n {str(e)}")
 
 # Process user prompt 
 if prompt := st.chat_input("Ask anything..."):
@@ -371,4 +399,5 @@ if prompt := st.chat_input("Ask anything..."):
 
 # streamlit run app.py
 # C:\Users\Dell\AppData\Local\Temp\tmpwc1bhv2v.pdf
+# https://python.langchain.com/docs/modules/chains/
     
