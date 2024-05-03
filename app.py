@@ -115,7 +115,8 @@ def chat(prompt, selected):
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "CSV":
-                    result = chain.invoke(question, {"chat_history": memory.load_memory_variables({})})
+                    question["chat_history"] = memory.load_memory_variables({})
+                    result = chain.invoke(question)
 
                     complete_response = ""
                     for tool_output in result:
@@ -127,16 +128,21 @@ def chat(prompt, selected):
                     memory.save_context(question, {"answer": complete_response}) 
 
                 if selected == "Webpage":
-                    result = chain.invoke(question)
+                    result = chain[0].invoke(question)
 
-                    for item in result["answer"]:
-                        link = item["link"]
-                        description = item["snippet"]
-                        st.markdown(f"Link: {link}")
-                        st.write_stream(stream_response(f"Description: {description}\n"))
+                    if chain[1] == 1:
+                        for item in result["answer"]:
+                            link = item["link"]
+                            description = item["snippet"]
+                            st.markdown(f"Link: {link}")
+                            st.write_stream(stream_response(f"Description: {description}\n"))
+                    elif chain[1] == 2:
+                        print(result)
 
                 if selected == "Youtube":
+                    question["chat_history"] = memory.load_memory_variables({})
                     result = chain.invoke(question)
+                    print(result)
         else:
             st.write_stream(stream_response("Please upload your documents.")) 
     
@@ -361,7 +367,7 @@ with st.sidebar:
                         print(doc_splits)
                         retriever = FAISS.from_documents(doc_splits, embeddings).as_retriever()
 
-                        st.session_state.chains[selected] = get_ragagent(llm, retriever)
+                        st.session_state.chains[selected] = (get_ragagent(llm, retriever), 1)
 
                         success = st.success("URLs processed successfully")
                         time.sleep(1)
@@ -371,7 +377,7 @@ with st.sidebar:
                         error = st.error(f"Error processing URLs:\n {str(e)}")
         else:
             st.markdown("✨ *Enter your prompt and query based on knowledge retrieved from websearch.*")
-            st.session_state.chains[selected] = websearch_chain(llm)
+            st.session_state.chains[selected] = (websearch_chain(llm), 2)
 
     if selected == "YouTube": 
         st.title(f"Chat with {selected}")
