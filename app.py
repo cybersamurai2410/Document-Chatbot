@@ -151,11 +151,11 @@ def chat(prompt, selected):
                             title = item["title"]
                             link = item["link"]
                             description = item["snippet"]
-
-                            complete_response += f"**Title:** {title} \n**Link:** {link} \n**Description:** {description}\n\n"
+                            complete_response += f"**Title:** {title}  \n**Link:** {link}  \n**Description:** {description}\n\n"
 
                     elif chain[1] == 2:
                         print(result)
+                        complete_response = result
 
                     st.markdown(complete_response)
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
@@ -164,6 +164,7 @@ def chat(prompt, selected):
                     question["chat_history"] = memory.load_memory_variables({})
                     result = chain.invoke(question)
                     print(result)
+                    st.markdown(result)
                     # chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": result}]
         else:
             st.write_stream(stream_response("Please upload your documents.")) 
