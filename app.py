@@ -26,13 +26,11 @@ import matplotlib.pyplot as plt
 from operator import itemgetter
 import time
 import os 
-from io import BytesIO, StringIO
 import tempfile
 import shutil
-
+import requests
 import validators
 from bs4 import BeautifulSoup
-import requests
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -129,20 +127,44 @@ def chat(prompt, selected):
 
                 if selected == "Webpage":
                     result = chain[0].invoke(question)
+                    complete_response = ""
 
                     if chain[1] == 1:
-                        for item in result["answer"]:
+                        answer = result["answer"]
+                        items = answer.strip('[]').split("], [")
+
+                        info = []
+                        for item in items:
+                            # Split the item into snippet, title, and link parts
+                            snippet, _, rest = item.partition(", title: ") # _ is ", title: " -> splits substrings before and after 
+                            title, _, link = rest.partition(", link: ")
+                            
+                            # Strip the leading identifiers and whitespace from snippet, title, and link
+                            result_dict = {
+                                "snippet": snippet.replace("snippet: ", "").strip(),
+                                "title": title.strip(),
+                                "link": link.strip()
+                            }
+                            info.append(result_dict)
+
+                        for item in info:
+                            title = item["title"]
                             link = item["link"]
                             description = item["snippet"]
-                            st.markdown(f"Link: {link}")
-                            st.write_stream(stream_response(f"Description: {description}\n"))
+
+                            complete_response += f"**Title:** {title} \n**Link:** {link} \n**Description:** {description}\n\n"
+
                     elif chain[1] == 2:
                         print(result)
+
+                    st.markdown(complete_response)
+                    chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "Youtube":
                     question["chat_history"] = memory.load_memory_variables({})
                     result = chain.invoke(question)
                     print(result)
+                    # chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": result}]
         else:
             st.write_stream(stream_response("Please upload your documents.")) 
     
@@ -268,7 +290,6 @@ with st.sidebar:
         try:
             if st.button("Process"):
                 with st.spinner("Processing"):
-
                     if docs:
                         dataframes = {}
                         st.session_state.processed_files[selected] = []
@@ -367,7 +388,7 @@ with st.sidebar:
                         print(doc_splits)
                         retriever = FAISS.from_documents(doc_splits, embeddings).as_retriever()
 
-                        st.session_state.chains[selected] = (get_ragagent(llm, retriever), 1)
+                        st.session_state.chains[selected] = (get_ragagent(llm, retriever), 2)
 
                         success = st.success("URLs processed successfully")
                         time.sleep(1)
@@ -377,7 +398,7 @@ with st.sidebar:
                         error = st.error(f"Error processing URLs:\n {str(e)}")
         else:
             st.markdown("✨ *Enter your prompt and query based on knowledge retrieved from websearch.*")
-            st.session_state.chains[selected] = (websearch_chain(llm), 2)
+            st.session_state.chains[selected] = (websearch_chain(llm), 1)
 
     if selected == "YouTube": 
         st.title(f"Chat with {selected}")
