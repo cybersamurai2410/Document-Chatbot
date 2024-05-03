@@ -20,12 +20,20 @@ from langchain.tools.retriever import create_retriever_tool
 import asyncio
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+# search = GoogleSearchAPIWrapper(k=1)
+search = DuckDuckGoSearchResults()
+search_tool = Tool(
+    name="web_broswer",
+    description="Search web browser for recent results.",
+    func=search.run,
+)
+
 # RAG Agent 
 def get_ragagent(llm, retriever):
     
     prompt = hub.pull("hwchase17/structured-chat-agent")
 
-    tools = []
+    tools = [search_tool] 
     retriever_tool = create_retriever_tool(
     retriever = retriever,
     name = "webpages", # Modify -> Group name or url list
@@ -39,14 +47,6 @@ def get_ragagent(llm, retriever):
     return agent_executor # agent_executor.invoke({"input": "what is LangChain?"})
 
 def websearch_chain(llm):
-    # search = GoogleSearchAPIWrapper(k=1)
-    search = DuckDuckGoSearchResults()
-    search_tool = Tool(
-        name="web_broswer",
-        description="Search web browser for recent results.",
-        func=search.run,
-    )
-
     template = """Convert the following question prompt to a single query optimized for web search: {question}\n
     Just return the search query and nothing else!
     Search Query: """
@@ -84,9 +84,9 @@ def youtube_chain(llm, retriever):
 
     # Answer question
     qa_system_prompt = """You are an assistant for question-answering tasks. \
-    Use the following pieces of retrieved context to answer the question. \
+    Use the following pieces of retrieved context from youtube videos to answer the question. \
     If you don't know the answer, just say that you don't know. \
-    Use three sentences maximum and keep the answer concise.\
+    Use a few sentences to keep the answer concise.\
 
     {context}"""
     qa_prompt = ChatPromptTemplate.from_messages(
