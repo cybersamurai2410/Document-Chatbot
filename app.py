@@ -130,6 +130,7 @@ def chat(prompt, selected):
                     complete_response = ""
 
                     if chain[1] == 1:
+                        summmary = f"**Summary:**  \n{result["summmary"]}"
                         answer = result["answer"]
                         items = answer.strip('[]').split("], [")
 
@@ -158,6 +159,8 @@ def chat(prompt, selected):
                         complete_response = result
 
                     st.markdown(complete_response)
+                    st.write_stream(stream_response(summmary)) 
+                    complete_response += summmary
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "Youtube":
