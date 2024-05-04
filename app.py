@@ -126,11 +126,10 @@ def chat(prompt, selected):
                     memory.save_context(question, {"answer": complete_response}) 
 
                 if selected == "Webpage":
-                    result = chain[0].invoke(question)
-                    complete_response = ""
-
                     if chain[1] == 1:
-                        summmary = f"**Summary:**  \n{result["summmary"]}"
+                        result = chain[0].invoke(question)
+                        complete_response = ""
+                        summmary = "**Summary:**  \n" + result["summmary"]
                         answer = result["answer"]
                         items = answer.strip('[]').split("], [")
 
@@ -154,13 +153,16 @@ def chat(prompt, selected):
                             description = item["snippet"]
                             complete_response += f"**Title:** {title}  \n**Link:** {link}  \n**Description:** {description}\n\n"
 
-                    elif chain[1] == 2:
-                        print(result)
-                        complete_response = result
+                        st.markdown(complete_response)
+                        st.write_stream(stream_response(summmary)) 
+                        complete_response += summmary
 
-                    st.markdown(complete_response)
-                    st.write_stream(stream_response(summmary)) 
-                    complete_response += summmary
+                    elif chain[1] == 2:
+                        result = chain[0].invoke({"input": prompt})
+                        print(result)
+                        complete_response = result["output"]
+                        st.write_stream(stream_response(complete_response)) 
+
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "Youtube":
@@ -389,8 +391,11 @@ with st.sidebar:
 
                         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
                         doc_splits = text_splitter.split_documents(docs)
-                        print(doc_splits)
-                        retriever = FAISS.from_documents(doc_splits, embeddings).as_retriever()
+                        # print(doc_splits)
+                        vectorstore = FAISS.load_local("webpage_index", embedding, allow_dangerous_deserialization=True)
+                        # vectorstore = FAISS.from_documents(doc_splits, embedding)
+                        retriever = vectorstore.as_retriever()
+                        # vectorstore.save_local("webpage_index")
 
                         st.session_state.chains[selected] = (get_ragagent(llm, retriever), 2)
 
