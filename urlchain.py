@@ -33,7 +33,7 @@ def get_ragagent(llm, retriever):
     
     prompt = hub.pull("hwchase17/structured-chat-agent")
 
-    tools = [search_tool] 
+    tools = [] 
     retriever_tool = create_retriever_tool(
     retriever = retriever,
     name = "webpages", # Modify -> Group name or url list
@@ -103,7 +103,7 @@ def youtube_chain(llm, retriever):
 
     return retrieval_chain
 
-# question = "what are the results of the last ufc event?"
+
 # chain = websearch_chain(llm)
 # result = chain.invoke({"question": question})
 # print(result)
@@ -112,3 +112,38 @@ def youtube_chain(llm, retriever):
 """
 
 # what are the results of the last ufc event?
+# how to run agent as iterator?
+
+"""
+> Entering new AgentExecutor chain...
+Question: How to run agent as iterator?
+
+Thought: The agent needs to be run as an iterator to process a sequence of inputs.
+
+Action:
+```
+{
+  "action": "webpages",
+  "action_input": "iterator"
+}
+```
+Running Agent as an Iterator | 🦜️🔗 LangChain
+
+Add chat history | 🦜️🔗 LangChain
+
+us out by providing feedback on this documentation page:PreviousStreamingNextReturning Structured OutputCommunityDiscordTwitterGitHubPythonJS/TSMoreHomepageBlogYouTubeCopyright © 2024 LangChain, Inc.
+
+class_=("post-content", "post-title", "post-header")        )    ),)docs = loader.load()text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)splits = text_splitter.split_documents(docs)vectorstore = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings())retriever = vectorstore.as_retriever()### Contextualize question ###contextualize_q_system_prompt = """"Given a chat history and the latest user question \which might reference context in the chat history, formulate a standalone question \which can be understood without the chat history. Do NOT answer the question, \just reformulate it if needed and otherwise return it as is.""""contextualize_q_prompt = ChatPromptTemplate.from_messages(    [        ("system", contextualize_q_system_prompt),        MessagesPlaceholder("chat_history"),        ("human", "{input}"),    ])history_aware_retriever = create_history_aware_retriever(    llm, retriever, contextualize_q_prompt)### Answer questionHere is the response:
+
+Action:
+```
+{
+  "action": "Final Answer",
+  "action_input": "To run the agent as an iterator, you need to use the `create_history_aware_retriever` function, which takes the language model, the retriever, and a prompt template as inputs. The prompt template should be used to contextualize the question, and the retriever should be used to retrieve relevant documents. The function will return a retriever that is aware of the chat history."
+}
+```
+
+> Finished chain.
+"{'input': 'how to run agent as iterator?', 'output': 'To run the agent as an iterator, you need to use the `create_history_aware_retriever` function, which takes the language model, the retriever, and a prompt template as inputs. The prompt template should be used to contextualize the question, and the retriever should be used to retrieve relevant documents. The function will return a retriever that is aware of the chat history.'}"
+
+"""
