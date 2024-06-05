@@ -8,7 +8,8 @@ from langchain_community.document_loaders import (
 )
 from langchain_community.document_transformers import Html2TextTransformer
 
-from langchain_community.vectorstores import Chroma, FAISS
+from langchain_community.vectorstores import Chroma, FAISS 
+from langchain_pinecone import PineconeVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter 
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
@@ -19,6 +20,7 @@ from models import llms, embeddings
 from ragchain import get_ragchain
 from dfchain import DataFrameToolChain
 from urlchain import get_ragagent, websearch_chain
+from sqlchain import init_database
 
 import pandas as pd
 import numpy as np
@@ -355,6 +357,26 @@ with st.sidebar:
     if selected == "SQL":
         st.title(f"Chat with {selected}")
 
+        st.subheader("Settings")
+        st.text_input("Host", value="localhost", key="Host")
+        st.text_input("Port", value="3306", key="Port")
+        st.text_input("User", value="root", key="User")
+        st.text_input("Password", type="password", value="admin", key="Password")
+        st.text_input("Database", value="Chinook", key="Database")
+        
+        st.button("Connect") 
+        if st.button("Connect"):
+            with st.spinner("Connecting to database..."):
+                db = init_database(
+                    st.session_state["User"],
+                    st.session_state["Password"],
+                    st.session_state["Host"],
+                    st.session_state["Port"],
+                    st.session_state["Database"]
+                )
+                st.session_state.db = db
+                st.success("Connected to database!")
+
     if selected == "Webpage":
         st.title(f"Chat with {selected}")
         on = st.toggle("Toggle to manually enter URL")
@@ -391,11 +413,11 @@ with st.sidebar:
 
                         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
                         doc_splits = text_splitter.split_documents(docs)
-                        # print(doc_splits)
+
                         vectorstore = FAISS.load_local("webpage_index", embedding, allow_dangerous_deserialization=True)
                         # vectorstore = FAISS.from_documents(doc_splits, embedding)
-                        retriever = vectorstore.as_retriever()
                         # vectorstore.save_local("webpage_index")
+                        retriever = vectorstore.as_retriever()
 
                         st.session_state.chains[selected] = (get_ragagent(llm, retriever), 2)
 
@@ -420,6 +442,20 @@ with st.sidebar:
 
                     loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
                     docs = loader.load()
+                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+                    doc_splits = text_splitter.split_documents(docs)
+
+                    index_name = "doc-chatbot"
+                    vectorstore = PineconeVectorStore.from_documents(
+                        doc_splits, 
+                        embedding, 
+                        index_name=index_name,
+                        # namespace="example-namespace"
+                    )
+                    # PineconeVectorStore.from_existing_index(index_name=index_name, embedding=embedding)
+                    retriever = vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
+                    # vectorstore.add_documents(doc_splits, namespace="example-namespace") # Partition the records in an index into namespaces
+                    # vectorstore.delete([0])
 
                     # Generate summary  
                     summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
