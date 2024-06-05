@@ -42,9 +42,9 @@ def get_ragagent(llm, retriever):
     tools.append(retriever_tool) # Modify -> Loop retriever for different groups of urls then add to tools list
 
     agent = create_structured_chat_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, max_iterations=3)
 
-    return agent_executor # agent_executor.invoke({"input": "what is LangChain?"})
+    return agent_executor 
 
 def websearch_chain(llm):
     template = """Convert the following question prompt to a single query optimized for web search: {question}\n
