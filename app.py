@@ -20,7 +20,7 @@ from models import llms, embeddings
 from ragchain import get_ragchain
 from dfchain import DataFrameToolChain
 from urlchain import get_ragagent, websearch_chain
-from sqlchain import init_database
+from sqlchain import init_database, get_sqlchain
 
 import pandas as pd
 import numpy as np
@@ -127,6 +127,9 @@ def chat(prompt, selected):
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
                     memory.save_context(question, {"answer": complete_response}) 
 
+                if selected == "SQL":
+                    pass
+                
                 if selected == "Webpage":
                     if chain[1] == 1:
                         result = chain[0].invoke(question)
@@ -351,17 +354,18 @@ with st.sidebar:
                         ax.bar(df[x_column], df[y_column])
                         ax.set_xlabel(x_column)
                         ax.set_ylabel(y_column)
-                        ax.set_title(f"Bar Chart of {y_column} vs {x_column}")
+                        ax.set_title(f"Bar Chart of {y_column} vs {x_column}") 
+
                         st.pyplot(fig)
 
     if selected == "SQL":
-        st.title(f"Chat with {selected}")
+        st.title(f"Chat with {selected}") 
 
         st.subheader("Settings")
         st.text_input("Host", value="localhost", key="Host")
         st.text_input("Port", value="3306", key="Port")
-        st.text_input("User", value="root", key="User")
-        st.text_input("Password", type="password", value="admin", key="Password") 
+        st.text_input("User", key="User")
+        st.text_input("Password", type="password", key="Password") 
         st.text_input("Database", value="Chinook", key="Database")
 
         if st.button("Connect"):
@@ -374,7 +378,13 @@ with st.sidebar:
                     st.session_state["Database"]
                 )
                 st.session_state.db = db
-                st.success("Connected to database!")
+                print(st.session_state.db)
+                if st.session_state.db is not None:
+                    st.success("Connected to database")
+                else:
+                    st.error("Database connection failed")
+
+                st.session_state.chains[selected] = get_sqlchain(db, llm) 
 
     if selected == "Webpage":
         st.title(f"Chat with {selected}")
