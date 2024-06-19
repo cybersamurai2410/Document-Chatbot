@@ -82,7 +82,7 @@ def get_sqlchain(db, llm):
                 "query": itemgetter("query"),
                 "schema": itemgetter("schema"),
                 "response": itemgetter("response"),
-            } | prompt | llm
+            } | prompt | llm | StrOutputParser()
         )
         .pick(["query", "response", "answer"])
     )
@@ -93,5 +93,5 @@ def get_sqlchain(db, llm):
 
 '''
 how many albums are there?
-content='There are 3 albums in the database.' response_metadata={'token_usage': {'completion_time': 0.007283877, 'completion_tokens': 10, 'prompt_time': 0.541375225, 'prompt_tokens': 3022, 'queue_time': None, 'total_time': 0.548659102, 'total_tokens': 3032}, 'model_name': 'llama3-8b-8192', 'system_fingerprint': 'fp_179b0f92c9', 'finish_reason': 'stop', 'logprobs': None} id='run-9ebda93c-cea8-45ea-9e2d-080202972849-0'
+{'query': 'SELECT COUNT(*) FROM album;', 'response': '[(347,)]', 'answer': AIMessage(content='There are 3 albums in the database.', response_metadata={'token_usage': {'completion_time': 0.007283652, 'completion_tokens': 10, 'prompt_time': 0.594609203, 'prompt_tokens': 3022, 'queue_time': None, 'total_time': 0.601892855, 'total_tokens': 3032}, 'model_name': 'llama3-8b-8192', 'system_fingerprint': 'fp_dadc9d6142', 'finish_reason': 'stop', 'logprobs': None}, id='run-21a6f040-cee7-4e49-8e56-ab172cc9130d-0')}
 '''
