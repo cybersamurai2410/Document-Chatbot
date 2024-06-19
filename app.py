@@ -128,7 +128,15 @@ def chat(prompt, selected):
                     memory.save_context(question, {"answer": complete_response}) 
 
                 if selected == "SQL":
-                    pass
+                    question["chat_history"] = memory.load_memory_variables({})
+                    result = chain.invoke(question)
+                    print(result)
+
+                    answer = result["answer"] + "(Query:"+result["query"]+")"
+
+                    st.markdown(answer)
+                    chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": answer}]
+                    memory.save_context(question, {"answer": answer}) 
                 
                 if selected == "Webpage":
                     if chain[1] == 1:
@@ -475,10 +483,8 @@ with st.sidebar:
                             error = st.error(f"Error processing URL:\n {str(e)}")
 
 # Process user prompt 
-if prompt := st.chat_input("Ask anything..."):
+if prompt := st.chat_input("Ask your question..."):
     chat(prompt, selected) 
 
 # streamlit run app.py
-# C:\Users\Dell\AppData\Local\Temp\tmpwc1bhv2v.pdf
-# https://python.langchain.com/docs/modules/chains/
     
