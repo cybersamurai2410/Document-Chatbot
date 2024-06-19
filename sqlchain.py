@@ -1,3 +1,5 @@
+from operator import itemgetter
+
 from langchain_community.utilities import SQLDatabase 
 from langchain_community.agent_toolkits import create_sql_agent
 import mysql.connector 
@@ -57,16 +59,39 @@ def get_sqlchain(db, llm):
   
     prompt = ChatPromptTemplate.from_template(template)
 
+    # chain = (
+    #     RunnablePassthrough.assign(query=query_chain).assign(
+    #     schema=lambda _: db.get_table_info(),
+    #     response=lambda vars: db.run(vars["query"]),
+    #     )
+    #     | prompt
+    #     | llm
+    #     | StrOutputParser()
+    # )
+
     chain = (
-        RunnablePassthrough.assign(query=query_chain).assign(
-        schema=lambda _: db.get_table_info(),
-        response=lambda vars: db.run(vars["query"]),
+        RunnablePassthrough.assign(query=query_chain)
+        .assign(
+            schema=lambda _: db.get_table_info(),
+            response=lambda vars: db.run(vars["query"]),
         )
-        | prompt
-        | llm
-        | StrOutputParser()
+        .assign(
+            answer={
+                "question": itemgetter("question"),
+                "chat_history": itemgetter("chat_history"),
+                "query": itemgetter("query"),
+                "schema": itemgetter("schema"),
+                "response": itemgetter("response"),
+            } | prompt | llm
+        )
+        .pick(["query", "response", "answer"])
     )
 
     return chain 
 
 # agent_executor = create_sql_agent(llm, db=db, agent_type="tool-calling", verbose=True)
+
+'''
+how many albums are there?
+content='There are 3 albums in the database.' response_metadata={'token_usage': {'completion_time': 0.007283877, 'completion_tokens': 10, 'prompt_time': 0.541375225, 'prompt_tokens': 3022, 'queue_time': None, 'total_time': 0.548659102, 'total_tokens': 3032}, 'model_name': 'llama3-8b-8192', 'system_fingerprint': 'fp_179b0f92c9', 'finish_reason': 'stop', 'logprobs': None} id='run-9ebda93c-cea8-45ea-9e2d-080202972849-0'
+'''
