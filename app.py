@@ -38,9 +38,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Load default llm and embedding models
-llm_key = "gemini-pro"
-llm = llms[llm_key]
-embedding = embeddings[llm_key]
+default_model = "gemini-1.0-pro"
+llm = llms[default_model]
+embedding = embeddings["google-gemini"] 
 
 # Memory is general to all chat modes
 memory = ConversationBufferMemory(return_messages=True, output_key="answer", input_key="question")
@@ -99,15 +99,17 @@ def chat(prompt, selected):
                 # Format answers based on chat mode
                 if selected == "PDF":
                     result = chain.invoke(question)
+                    print(result)
+
                     answer = result["answer"].content
                     sources = result["docs"]
                     memory.save_context(question, {"answer": answer}) 
                     print(result)
 
                     content = "\n\n" + "**Relevant Sources:**\n"
-                    for i, doc in enumerate(sources):
+                    for i, (doc, score) in enumerate(sources):
                         file_name = os.path.basename(doc.metadata['source'])
-                        content += f"- Source {i+1}: {file_name} (Page {doc.metadata['page']})\n"
+                        content += f"- Source {i+1}: {file_name} | Page {doc.metadata['page']} (Confidence Score: {score*100:.2f}%) \n"
                     complete_response = answer + content
                         
                     st.write_stream(stream_response(answer)) 
@@ -192,42 +194,35 @@ def chat(prompt, selected):
 
 def pdf_loader(docs):
     merge_docs = []
-    # for file in docs:
-    #     temp_dir = tempfile.mkdtemp() # Create temporary directory 
-    #     temp_file_path = os.path.join(temp_dir, file.name) # Add file name in directory
+    for file in docs:
+        temp_dir = tempfile.mkdtemp() # Create temporary directory 
+        temp_file_path = os.path.join(temp_dir, file.name) # Add file name in directory
 
-    #     # Write file content in temp file
-    #     with open(temp_file_path, 'wb') as temp_file:
-    #         temp_file.write(file.getvalue())
+        # Write file content in temp file
+        with open(temp_file_path, 'wb') as temp_file:
+            temp_file.write(file.getvalue())
 
-    #     # Load and split content from PDF files
-    #     loader = PyPDFLoader(temp_file_path)  
-    #     documents = loader.load_and_split()
-    #     documents = documents[:3] 
-    #     merge_docs.extend(documents) # Combine list of files 
-    #     shutil.rmtree(temp_dir) #Delete temporary directory 
+        # Load and split content from PDF files
+        loader = PyPDFLoader(temp_file_path)  
+        documents = loader.load_and_split()
+        documents = documents[:3] # Take first three pages of the file (proof of concept)
+        merge_docs.extend(documents) # Combine list of files 
+        shutil.rmtree(temp_dir) # Delete temporary directory
+        print(documents, "\n") 
 
-    # index_name = "faiss_index"
-    # try:
-    #     vectorstore = FAISS.load_local(index_name, embedding)
-    #     update_vectorstore = FAISS.from_documents(merge_docs, embedding)
-    #     vectorstore.merge_from(update_vectorstore)
-    #     print("Existing vectorstore loaded...")
-    # except Exception as e:
-    #     print("No existing vectorstore found, creating a new one...")
-    #     vectorstore = FAISS.from_documents(merge_docs, embedding)
+    vector_store = Chroma(
+        collection_name="documents",
+        embedding_function=embedding,
+        persist_directory="./doc_chat-chroma_db",   
+    )
+    vector_store.add_documents(merge_docs)
+    retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
 
-    # print(f"Vectorstore saved with {vectorstore.index.ntotal} total entries.")
-    # retreiver = vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
-    # vectorstore.save_local(index_name)
-    # vectorstore.delete([db.index_to_docstore_id[0]])
-
-    # vectorstore = Chroma.from_documents(merge_docs, embedding)
     # save_vectorstore = Chroma.from_documents(merge_docs, embedding, persist_directory="./chroma_db")
-    load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding)
-    retriever = load_vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
+    # load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding)
+    # retriever = load_vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
 
-    return retriever
+    return vector_store, retriever
 
 st.set_page_config(page_title="Document Chatbot", page_icon="✨")
 st.title("Document Chatbot 📚🤖")
@@ -274,10 +269,10 @@ with st.sidebar:
                     if docs:
                         print(docs)
                         print("Loading PDF...")
-                        retriever = pdf_loader(docs) 
+                        vectorstore, retriever = pdf_loader(docs) 
                         print("Retrieving chain...")
                         st.session_state.processed_files[selected].extend([doc.name for doc in docs])
-                        st.session_state.chains[selected] = get_ragchain(loaded_memory, retriever, llm, st.session_state.processed_files[selected])
+                        st.session_state.chains[selected] = get_ragchain(loaded_memory, vectorstore, retriever, llm, st.session_state.processed_files[selected])
                 
                         success = st.success("Files processed successfully")
                         time.sleep(1)
