@@ -33,19 +33,20 @@ import shutil
 import requests
 import validators
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 from dotenv import load_dotenv
 load_dotenv()
 
 # Load default llm and embedding models
-default_model = "gemini-1.0-pro"
+default_model = "gpt-4o-mini (openai)"
 llm = llms[default_model]
-embedding = embeddings["google-gemini"] 
+embedding = embeddings["openai_gpt"] 
 
 # Memory is general to all chat modes
 memory = ConversationBufferMemory(return_messages=True, output_key="answer", input_key="question")
 loaded_memory = RunnablePassthrough.assign(
-    chat_history = RunnableLambda(memory.load_memory_variables) | itemgetter("history") # Dictionary with history key after loading memory
+    chat_history = RunnableLambda(memory.load_memory_variables) | itemgetter("history") # Dictionary with history key after loading memory: loaded_memory.invoke({})
 )
 
 # Store conversation for each mode
@@ -104,7 +105,6 @@ def chat(prompt, selected):
                     answer = result["answer"].content
                     sources = result["docs"]
                     memory.save_context(question, {"answer": answer}) 
-                    print(result)
 
                     content = "\n\n" + "**Relevant Sources:**\n"
                     for i, (doc, score) in enumerate(sources):
@@ -117,17 +117,36 @@ def chat(prompt, selected):
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "CSV":
-                    question["chat_history"] = memory.load_memory_variables({})
+                    question["chat_history"] = memory.load_memory_variables({})["history"] # Variable chat_history should be a list of base messages 
+                    current_time = datetime.now()
                     result = chain.invoke(question)
+                    print("Result: ", result)
 
                     complete_response = ""
                     for tool_output in result:
-                        output = tool_output["output"]
-                        complete_response += str(output) + "\n"
+                        # output = tool_output["output"]
+                        output = tool_output.get("explanation", None)  # If key does not exist then None 
+                        complete_response += str(output.content) + "\n" if output is not None else ""
 
+                    # Get list of recently generated graphs 
+                    print("Directory: ", os.listdir('Graphs'))
+                    files_after_current_time = [file for file in os.listdir('Graphs') if os.path.getmtime(os.path.join('Graphs', file)) > current_time.timestamp()]
+                    print("Files: ", files_after_current_time)
+                    
+                    # Display generated graphs
+                    if files_after_current_time:
+                        complete_response += "\n\n**Generated Graphs:**\n\n"
+                        for file in files_after_current_time:
+                            complete_response += f"![{file}](Graphs/{file})\n\n"
+                            st.image(f"Graphs/{file}", caption=file)
+                    
+                    print("Response: ", complete_response)
                     st.markdown(complete_response)
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
                     memory.save_context(question, {"answer": complete_response}) 
+
+                    files_after_current_time = [file for file in os.listdir('Graphs') if os.path.getctime(os.path.join('Graphs', file)) > current_time.timestamp()]
+                    print("Files-next: ", files_after_current_time)
 
                 if selected == "SQL":
                     question["chat_history"] = memory.load_memory_variables({})
@@ -216,7 +235,7 @@ def pdf_loader(docs):
         persist_directory="./doc_chat-chroma_db",   
     )
     vector_store.add_documents(merge_docs)
-    retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
+    retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 5, "score_threshold": 0.5})
 
     # save_vectorstore = Chroma.from_documents(merge_docs, embedding, persist_directory="./chroma_db")
     # load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding)
@@ -294,7 +313,7 @@ with st.sidebar:
         if uploaded_files is not None:
             csv_files = [file for file in uploaded_files if file.type == "text/csv"] # Filter files to CSV 
 
-            seen = set(st.session_state.processed_files[selected])
+            seen = set(file.name for file in st.session_state.processed_files[selected]) # Hashable attribute of uploaded csv files 
             docs = []
             for file in csv_files:
                 if file.name not in seen:
@@ -310,9 +329,11 @@ with st.sidebar:
 
                         for doc in docs:
                             df = pd.read_csv(doc)
-                            dataframes[doc.name] = df
+                            filename = doc.name.split('.')[0]
+                            dataframes[filename] = df
                             st.session_state.processed_files[selected].append(doc)
 
+                        print(dataframes)
                         dfchain = DataFrameToolChain(dataframes, llm)
                         st.session_state.chains[selected] = dfchain.get_dfchain()
                 
