@@ -3,9 +3,9 @@ from langchain_community.chat_models.huggingface import ChatHuggingFace
 from langchain_community.chat_models import ChatOllama
 from langchain_community.embeddings import HuggingFaceEmbeddings, HuggingFaceInferenceAPIEmbeddings, OllamaEmbeddings
 
-from langchain_openai import ChatOpenAI # Also used for TogetherAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings # Also used for TogetherAI
 from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import GoogleGenerativeAI, ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_cohere import ChatCohere, CohereEmbeddings # CohereRagRetriever, CohereRerank
 from langchain_groq import ChatGroq
 # from langchain_mistralai import ChatMistralAI
@@ -13,16 +13,16 @@ from langchain_groq import ChatGroq
 # from langchain_fireworks import ChatFireworks
 
 llms = {
-    "gemini-pro": ChatGoogleGenerativeAI(model="gemini-pro", convert_system_message_to_human=True),
-    "claude-3-sonnet": ChatAnthropic(model_name="claude-3-sonnet-20240229", temperature=0),
-    "cohere": ChatCohere(model="command", temperature=0), # command-r-plus
-    "groq-llama3_8b": ChatGroq(temperature=0, model_name="llama3-8b-8192"),
-    "groq-gemma7b": ChatGroq(temperature=0, model_name="gemma-7b-it"),
-    "gpt-3.5-turbo": 'ChatOpenAI(temperature=0)'
+    "gpt-4o-mini (openai)": ChatOpenAI(model_name='gpt-4o-mini'),
+    "gemini-1.0-pro (google)": ChatGoogleGenerativeAI(model="gemini-1.0-pro", convert_system_message_to_human=True),
+    "claude-3.5-haiku (anthropic)": ChatAnthropic(model_name="claude-3-5-haiku-20241022"), # claude-3-5-sonnet-20241022
+    "cohere-command (cohere)": ChatCohere(model="command"), 
+    "groq-llama-3-8b (meta)": ChatGroq(model_name="llama3-8b-8192"),
 }  
 
 embeddings = {
-    "gemini-pro": GoogleGenerativeAIEmbeddings(model="models/embedding-001"),
+    "openai_gpt": OpenAIEmbeddings(model="text-embedding-3-large"),
+    "google-gemini": GoogleGenerativeAIEmbeddings(model="models/embedding-001"),
     "cohere": CohereEmbeddings(model="embed-english-v3.0"), # embed-multilingual-v3.0 
 }
 
