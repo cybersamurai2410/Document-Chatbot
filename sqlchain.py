@@ -59,16 +59,6 @@ def get_sqlchain(db, llm):
   
     prompt = ChatPromptTemplate.from_template(template)
 
-    # chain = (
-    #     RunnablePassthrough.assign(query=query_chain).assign(
-    #     schema=lambda _: db.get_table_info(),
-    #     response=lambda vars: db.run(vars["query"]),
-    #     )
-    #     | prompt
-    #     | llm
-    #     | StrOutputParser()
-    # )
-
     chain = (
         RunnablePassthrough.assign(query=query_chain)
         .assign(
@@ -95,3 +85,8 @@ def get_sqlchain(db, llm):
 how many albums are there?
 {'query': 'SELECT COUNT(*) FROM album;', 'response': '[(347,)]', 'answer': AIMessage(content='There are 3 albums in the database.', response_metadata={'token_usage': {'completion_time': 0.007283652, 'completion_tokens': 10, 'prompt_time': 0.594609203, 'prompt_tokens': 3022, 'queue_time': None, 'total_time': 0.601892855, 'total_tokens': 3032}, 'model_name': 'llama3-8b-8192', 'system_fingerprint': 'fp_dadc9d6142', 'finish_reason': 'stop', 'logprobs': None}, id='run-21a6f040-cee7-4e49-8e56-ab172cc9130d-0')}
 '''
+
+"""
+Running MySQL Server: 
+Windows key -> service -> MySQL80 -> right-click -> Start
+"""
