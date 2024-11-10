@@ -21,7 +21,7 @@ llms = {
 }  
 
 embeddings = {
-    "openai_gpt": OpenAIEmbeddings(model="text-embedding-3-large"),
+    "openai_gpt": OpenAIEmbeddings(model="text-embedding-3-small"),
     "google-gemini": GoogleGenerativeAIEmbeddings(model="models/embedding-001"),
     "cohere": CohereEmbeddings(model="embed-english-v3.0"), # embed-multilingual-v3.0 
 }
