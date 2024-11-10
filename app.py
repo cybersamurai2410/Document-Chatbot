@@ -3,18 +3,17 @@ from streamlit_option_menu import option_menu
 
 from langchain_community.document_loaders import (
     PyPDFLoader, 
-    WebBaseLoader, YoutubeLoader, 
-    AsyncHtmlLoader 
+    WebBaseLoader, 
+    YoutubeLoader, 
 )
-from langchain_community.document_transformers import Html2TextTransformer
 
-from langchain_community.vectorstores import Chroma, FAISS 
+from langchain_community.vectorstores import Chroma 
 from langchain_pinecone import PineconeVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter 
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
 from langchain.chains.summarize import load_summarize_chain
-from langchain.tools.retriever import create_retriever_tool
+from pinecone import Pinecone, ServerlessSpec
 
 from models import llms, embeddings
 from ragchain import get_ragchain
@@ -22,6 +21,7 @@ from dfchain import DataFrameToolChain
 from urlchain import get_ragagent, websearch_chain
 from sqlchain import init_database, get_sqlchain
 
+from uuid import uuid4
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -30,7 +30,6 @@ import time
 import os 
 import tempfile
 import shutil
-import requests
 import validators
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -145,23 +144,23 @@ def chat(prompt, selected):
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
                     memory.save_context(question, {"answer": complete_response}) 
 
-                    files_after_current_time = [file for file in os.listdir('Graphs') if os.path.getctime(os.path.join('Graphs', file)) > current_time.timestamp()]
-                    print("Files-next: ", files_after_current_time)
-
                 if selected == "SQL":
-                    question["chat_history"] = memory.load_memory_variables({})
+                    question["chat_history"] = memory.load_memory_variables({})["history"]
                     result = chain.invoke(question)
-                    print(result)
+                    print("Result: ", result)
 
-                    answer = result["answer"] + "(Query:"+result["query"]+")"
-
+                    answer = result["answer"]
+                    answer += f"\n\n **Query:** \n\n```sql {result['query']}```"
                     st.markdown(answer)
+
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": answer}]
                     memory.save_context(question, {"answer": answer}) 
                 
                 if selected == "Webpage":
                     if chain[1] == 1:
                         result = chain[0].invoke(question)
+                        print(result)
+
                         complete_response = ""
                         summmary = "**Summary:**  \n" + result["summmary"]
                         answer = result["answer"]
@@ -192,11 +191,13 @@ def chat(prompt, selected):
                         complete_response += summmary
 
                     elif chain[1] == 2:
-                        result = chain[0].invoke({"input": prompt})
+                        result = chain[0].invoke({"input": prompt, "chat_history": memory.load_memory_variables({})["history"], "agent_scratchpad": ""})
                         print(result)
+
                         complete_response = result["output"]
                         st.write_stream(stream_response(complete_response)) 
 
+                    memory.save_context(question, {"answer": complete_response}) 
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "Youtube":
@@ -230,22 +231,36 @@ def pdf_loader(docs):
         print(documents, "\n") 
 
     vector_store = Chroma(
-        collection_name="documents",
+        collection_name="pdf",
         embedding_function=embedding,
-        persist_directory="./doc_chat-chroma_db",   
+        persist_directory="./documents-db",   
     )
     vector_store.add_documents(merge_docs)
     retriever = vector_store.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 5, "score_threshold": 0.5})
 
-    # save_vectorstore = Chroma.from_documents(merge_docs, embedding, persist_directory="./chroma_db")
-    # load_vectorstore = Chroma(persist_directory="./chroma_db", embedding_function=embedding)
-    # retriever = load_vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
-
     return vector_store, retriever
+
+def init_vector_db(index_name):
+    pinecone_api_key = os.environ.get("PINECONE_API_KEY")
+    pc = Pinecone(api_key=pinecone_api_key)
+
+    existing_indexes = [index_info["name"] for index_info in pc.list_indexes()]
+    if index_name not in existing_indexes:
+        pc.create_index(
+            name=index_name,
+            dimension=1536, # openai embedding dimensions 
+            metric="cosine",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+        )
+        while not pc.describe_index(index_name).status["ready"]:
+            time.sleep(1)
+
+    index = pc.Index(index_name)
+
+    return index 
 
 st.set_page_config(page_title="Document Chatbot", page_icon="✨")
 st.title("Document Chatbot 📚🤖")
-# st_placeholder = st.empty()
 
 with st.sidebar:
     url = "https://github.com/cybersamurai2410/Document-Chatbot/blob/main/README.md"
@@ -447,10 +462,13 @@ with st.sidebar:
                         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
                         doc_splits = text_splitter.split_documents(docs)
 
-                        vectorstore = FAISS.load_local("webpage_index", embedding, allow_dangerous_deserialization=True)
-                        # vectorstore = FAISS.from_documents(doc_splits, embedding)
-                        # vectorstore.save_local("webpage_index")
-                        retriever = vectorstore.as_retriever()
+                        vector_store = Chroma(
+                            collection_name="webpages",
+                            embedding_function=embedding,
+                            persist_directory="./documents-db",   
+                        )
+                        # vector_store.add_documents(doc_splits)
+                        retriever = vector_store.as_retriever()
 
                         st.session_state.chains[selected] = (get_ragagent(llm, retriever), 2)
 
@@ -477,18 +495,15 @@ with st.sidebar:
                     docs = loader.load()
                     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
                     doc_splits = text_splitter.split_documents(docs)
+                    uuids = [str(uuid4()) for _ in range(len(doc_splits))]
 
                     index_name = "doc-chatbot"
-                    vectorstore = PineconeVectorStore.from_documents(
-                        doc_splits, 
-                        embedding, 
-                        index_name=index_name,
-                        # namespace="example-namespace"
-                    )
-                    # PineconeVectorStore.from_existing_index(index_name=index_name, embedding=embedding)
-                    retriever = vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"score_threshold": 0.5})
-                    # vectorstore.add_documents(doc_splits, namespace="example-namespace") # Partition the records in an index into namespaces
-                    # vectorstore.delete([0])
+                    # index = init_vector_db(index_name)
+                    vector_store = PineconeVectorStore(index=index_name, embedding=embedding)
+                    vector_store.add_documents(documents=doc_splits, ids=uuids)
+                    # vector_store.delete(ids=[uuids[-1]])
+                    
+                    retriever = vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 5, "score_threshold": 0.5})
 
                     # Generate summary  
                     summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
@@ -496,7 +511,7 @@ with st.sidebar:
                     st.markdown(f"*Summary:* \n{summary}")
 
                 except Exception as e:
-                            error = st.error(f"Error processing URL:\n {str(e)}")
+                    error = st.error(f"Error processing URL:\n {str(e)}")
 
 # Process user prompt 
 if prompt := st.chat_input("Ask your question..."):
