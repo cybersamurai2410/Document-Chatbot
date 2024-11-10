@@ -1,4 +1,5 @@
 from operator import itemgetter
+import os 
 
 from langchain.agents import AgentExecutor, AgentType, Tool, tool, create_structured_chat_agent
 from langchain_community.tools import DuckDuckGoSearchResults
@@ -30,16 +31,69 @@ search_tool = Tool(
 
 # RAG Agent 
 def get_ragagent(llm, retriever):
-    
-    prompt = hub.pull("hwchase17/structured-chat-agent")
 
-    tools = [] 
+    # prompt = hub.pull("hwchase17/structured-chat-agent") # https://smith.langchain.com/hub/hwchase17/structured-chat-agent
+    system = '''Respond to the human as helpfully and accurately as possible. You have access to the following tools:
+
+        {tools}
+
+        Use a json blob to specify a tool by providing an action key (tool name) and an action_input key (tool input).
+
+        Valid "action" values: "Final Answer" or {tool_names}
+
+        Provide only ONE action per $JSON_BLOB, as shown:
+
+        ```
+        {{
+        "action": $TOOL_NAME,
+        "action_input": $INPUT
+        }}
+        ```
+
+        Follow this format:
+
+        Question: input question to answer
+        Thought: consider previous and subsequent steps
+        Action:
+        ```
+        $JSON_BLOB
+        ```
+        Observation: action result
+        ... (repeat Thought/Action/Observation N times)
+        Thought: I know what to respond
+        Action:
+        ```
+        {{
+        "action": "Final Answer",
+        "action_input": "Final response to human"
+        }}
+
+        Begin! Reminder to ALWAYS respond with a valid json blob of a single action. Use tools if necessary. Respond directly if appropriate. Format is Action:```$JSON_BLOB```then Observation'''
+
+    human = '''{input}
+
+    {agent_scratchpad}
+
+    (reminder to respond in a JSON blob no matter what)'''
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+        ("system", system),
+        MessagesPlaceholder("chat_history", optional=True),
+        ("human", human),
+        ]
+    )
+
     retriever_tool = create_retriever_tool(
     retriever = retriever,
-    name = "webpages", # Modify -> Group name or url list
-    description = "Information from corpuses for webpages.", # Modify -> Summary of webpages 
+    name = "webpages", 
+    description = "Information from corpuses for webpages." 
     )
-    tools.append(retriever_tool) # Modify -> Loop retriever for different groups of urls then add to tools list
+
+    tools = [retriever_tool, search_tool] 
+    tool_names = [t.name for t in tools]
+    print("tools: ", tools)
+    print("tool_names: ", tool_names)
 
     agent = create_structured_chat_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, max_iterations=3)
@@ -103,16 +157,9 @@ def youtube_chain(llm, retriever):
 
     return retrieval_chain
 
-
-# chain = websearch_chain(llm)
-# result = chain.invoke({"question": question})
-# print(result)
 """
 [snippet: From a perfect uppercut in the welterweight opener to a massive right hook that ended the evening, the first event after UFC 300 was an explosive affair that produced plenty of highlights and gave ..., title: Main Card Results | UFC Fight Night: Nicolau vs Perez, link: https://www.ufc.com/news/main-card-results-highlights-winner-interviews-ufc-fight-night-nicolau-vs-perez?language_content_entity=en], [snippet: See The Fight Results, Watch Post-Fight Interviews With The Main Card Winners And More From UFC 298: Volkanovski vs Topuria, Live From Honda Center In Anaheim By E. Spencer Kyte, on X @spencerkyte ..., title: Main Card Results | UFC 298: Volkanovski vs Topuria - UFC.com, link: https://www.ufc.com/news/main-card-results-highlights-winner-interviews-ufc-298-volkanovski-vs-topuria?language_content_entity=en], [snippet: Ultimate Fighting Championship (UFC) was back at the friendly confines of the Apex last night (Sat., April 27, 2024) in Las Vegas, Nevada for UFC Vegas 91. Headlining the event was a Flyweight ..., title: UFC Vegas 91 results: Biggest winners, loser from 'Nicolau vs. Perez ..., link: https://www.mmamania.com/2024/4/28/24143415/ufc-vegas-91-results-biggest-winners-loser-nicolau-perez-last-night-espn-mma], [snippet: Esteban Ribovics (29-28, 29-28, 29-28) defeats Kamuela Kirk by unanimous decision . Esteban Ribovics and Kamuela Kirk set the Fight of the Night bar high right out of the gate on Saturday night ..., title: UFC 290: Volkanovski vs Rodriguez Final Results - UFC.com, link: https://www.ufc.com/news/ufc-290-volkanovski-vs-rodriguez-results-highlights-winner-interviews?language_content_entity=en]
 """
-
-# what are the results of the last ufc event?
-# how to run agent as iterator?
 
 """
 > Entering new AgentExecutor chain...
@@ -146,4 +193,12 @@ Action:
 > Finished chain.
 "{'input': 'how to run agent as iterator?', 'output': 'To run the agent as an iterator, you need to use the `create_history_aware_retriever` function, which takes the language model, the retriever, and a prompt template as inputs. The prompt template should be used to contextualize the question, and the retriever should be used to retrieve relevant documents. The function will return a retriever that is aware of the chat history.'}"
 
+"""
+
+"""
+URLs:
+- https://www.datacamp.com/tutorial/how-transformers-work
+- https://medium.com/@puneetthegde22/mamba-architecture-a-leap-forward-in-sequence-modeling-370dfcbfe44a
+
+Prompt: explain difference between transformers and mamba
 """
