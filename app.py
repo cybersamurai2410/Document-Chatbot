@@ -6,9 +6,10 @@ from langchain_community.document_loaders import (
     WebBaseLoader, 
     YoutubeLoader, 
 )
+from langchain_community.document_loaders.youtube import TranscriptFormat
 
 from langchain_community.vectorstores import Chroma 
-from langchain_pinecone import PineconeVectorStore
+from langchain_pinecone import PineconeVectorStore, PineconeEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter 
 from langchain.memory import ConversationBufferMemory
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
@@ -18,7 +19,7 @@ from pinecone import Pinecone, ServerlessSpec
 from models import llms, embeddings
 from ragchain import get_ragchain
 from dfchain import DataFrameToolChain
-from urlchain import get_ragagent, websearch_chain
+from urlchain import get_ragagent, websearch_chain, youtube_chain
 from sqlchain import init_database, get_sqlchain
 
 from uuid import uuid4
@@ -201,11 +202,12 @@ def chat(prompt, selected):
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "Youtube":
-                    question["chat_history"] = memory.load_memory_variables({})
-                    result = chain.invoke(question)
-                    print(result)
+                    result = chain.invoke({"input": prompt, "chat_history": memory.load_memory_variables({})["history"]})
+                    print("Result: ", result)
                     st.markdown(result)
-                    # chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": result}]
+
+                    memory.save_context(question, {"answer": complete_response}) 
+                    chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": result}]
         else:
             st.write_stream(stream_response("Please upload your documents.")) 
     
@@ -485,25 +487,43 @@ with st.sidebar:
     if selected == "YouTube": 
         st.title(f"Chat with {selected}")
         url = st.text_input("Enter URL: ")
+        name_id = st.text_input("Enter a name for the video: ")
+        name_id_format = name_id.lower().replace(" ", "_").replace("-", "_")
+
         if st.button("Process"):
             with st.spinner("Processing"):
                 try:
                     st.write(f"URL: {url}")
                     st.video(url, subtitles="subtitles.vtt") # Display youtube video
 
-                    loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
+                    # Chunking text based on time stamps 
+                    loader = YoutubeLoader.from_youtube_url(
+                        url,
+                        add_video_info=False,
+                        transcript_format=TranscriptFormat.CHUNKS,
+                        chunk_size_seconds=30,
+                    )
                     docs = loader.load()
-                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-                    doc_splits = text_splitter.split_documents(docs)
-                    uuids = [str(uuid4()) for _ in range(len(doc_splits))]
+                    for doc in docs:
+                        doc.metadata["video_name"] = name_id 
 
-                    index_name = "doc-chatbot"
+
+                    uuids = [f"{name_id_format}-{str(uuid4())}" for _ in range(len(docs))]
+
+                    # loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
+                    # docs = loader.load()
+                    # text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+                    # doc_splits = text_splitter.split_documents(docs)
+                    # uuids = [str(uuid4()) for _ in range(len(doc_splits))]
+
+                    index_name = "doc-chatbot-vectordb"
                     # index = init_vector_db(index_name)
-                    vector_store = PineconeVectorStore(index=index_name, embedding=embedding)
+                    vector_store = PineconeVectorStore(index=index_name, embedding=embedding, namespace=name_id)
                     vector_store.add_documents(documents=doc_splits, ids=uuids)
-                    # vector_store.delete(ids=[uuids[-1]])
-                    
-                    retriever = vectorstore.as_retriever(search_type="similarity_score_threshold", search_kwargs={"k": 5, "score_threshold": 0.5})
+                    retriever = vectorstore.as_retriever()
+                    # vector_store.delete(ids=[uuids[-1]], namespace=name_id) # delete_all=True to clear index  
+
+                    st.session_state.chains[selected] = youtube_chain(llm, retriever)
 
                     # Generate summary  
                     summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
