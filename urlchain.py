@@ -86,8 +86,8 @@ def get_ragagent(llm, retriever):
 
     retriever_tool = create_retriever_tool(
     retriever = retriever,
-    name = "webpages", 
-    description = "Information from corpuses for webpages." 
+    name = "webpages_information", 
+    description = "Information from corpuses for webpages stored by the user." 
     )
 
     tools = [retriever_tool, search_tool] 
@@ -133,9 +133,8 @@ def youtube_chain(llm, retriever):
             ("human", "{input}"),
         ]
     )
-    history_aware_retriever = create_history_aware_retriever(
-        llm, retriever, contextualize_q_prompt
-    )
+    # contextualize_q_llm = llm.with_config(tags=["contextualize_q_llm"]) # Tags internally (dnot in response) allow to label model instance for tracing during inference useful for streaming. 
+    history_aware_retriever = create_history_aware_retriever(llm, retriever, contextualize_q_prompt)
 
     # Answer question
     qa_system_prompt = """You are an assistant for question-answering tasks. \
@@ -154,6 +153,7 @@ def youtube_chain(llm, retriever):
 
     document_chain = create_stuff_documents_chain(llm, qa_prompt)
     retrieval_chain = create_retrieval_chain(history_aware_retriever, document_chain)
+    # retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
     return retrieval_chain
 
