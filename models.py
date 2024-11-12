@@ -11,6 +11,7 @@ from langchain_groq import ChatGroq
 # from langchain_mistralai import ChatMistralAI
 # from langchain_google_vertexai import ChatVertexAI
 # from langchain_fireworks import ChatFireworks
+# from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 llms = {
     "gpt-4o-mini (openai)": ChatOpenAI(model_name='gpt-4o-mini'),
