@@ -147,13 +147,12 @@ def youtube_chain(llm, retriever):
         [
             ("system", qa_system_prompt),
             MessagesPlaceholder("chat_history"),
-            ("human", "{question}"),
+            ("human", "{input}"),
         ]
     )
 
     document_chain = create_stuff_documents_chain(llm, qa_prompt)
     retrieval_chain = create_retrieval_chain(history_aware_retriever, document_chain)
-    # retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
     return retrieval_chain
 
@@ -201,4 +200,13 @@ URLs:
 - https://medium.com/@puneetthegde22/mamba-architecture-a-leap-forward-in-sequence-modeling-370dfcbfe44a
 
 Prompt: explain difference between transformers and mamba
+"""
+
+"""
+YouTube:
+url = "https://www.youtube.com/watch?v=4VDZRR07Eqw"
+name_id/namespace = "YCombinator startup application "
+index_name = "doc-chatbot-vectordb"
+
+Result:  {'input': 'what is y combinator?', 'chat_history': [], 'context': [], 'answer': 'The Y combinator is a mathematical concept that is often used to demonstrate the fixpoint combinator in lambda calculus. It is a function that takes a function as an argument and returns a new function that is equivalent to the input function, but with the input function applied to itself. This is often used to create recursive functions in a context where direct recursion is not possible. The Y combinator is named after its inventor, the mathematician and logician Haskell Curry.'}
 """
