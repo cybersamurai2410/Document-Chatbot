@@ -48,6 +48,7 @@ memory = ConversationBufferMemory(return_messages=True, output_key="answer", inp
 loaded_memory = RunnablePassthrough.assign(
     chat_history = RunnableLambda(memory.load_memory_variables) | itemgetter("history") # Dictionary with history key after loading memory: loaded_memory.invoke({})
 )
+st.session_state.memory = memory  
 
 # Store conversation for each mode
 if "chat_histories" not in st.session_state:
@@ -202,13 +203,24 @@ def chat(prompt, selected):
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "YouTube":
-                    print("Youtube chain...")
-                    result = chain.invoke({"input": prompt, "chat_history": memory.load_memory_variables({})["history"]})
-                    print("Result: ", result)
-                    st.markdown(result)
+                    result = chain.invoke({"input": prompt, "chat_history": st.session_state.memory.load_memory_variables({})["history"]})
+                    # print("Result: ", result)
 
-                    memory.save_context(question, {"answer": complete_response}) 
-                    chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": result}]
+                    answer = result["answer"]
+                    context = result["context"]
+
+                    complete_response = (
+                        f"{answer}\n\n"
+                        "Sources:\n" +
+                        "\n".join([
+                            f"{i+1}. Timestamp: [{doc.metadata['start_timestamp']}]({doc.metadata['source']})\n Content: {doc.page_content}" 
+                            for i, doc in enumerate(context)
+                            ])
+                    )
+
+                    st.markdown(complete_response)
+                    memory.save_context(question, {"answer": answer}) 
+                    chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
         else:
             st.write_stream(stream_response("Please upload your documents.")) 
     
@@ -520,7 +532,8 @@ with st.sidebar:
                         # uuids = [f"{name_id_format}-{str(uuid4())}" for _ in range(len(docs))]
                         index_name = "doc-chatbot-vectordb"
                         index = init_vector_db(index_name)
-                        vector_store = PineconeVectorStore(index=index, embedding=embedding, namespace=name_id)
+                        namespace = "YCombinator startup application " # name id 
+                        vector_store = PineconeVectorStore(index=index, embedding=embedding, namespace=namespace)
                         # vector_store.add_documents(documents=docs, ids=uuids)
                         retriever = vector_store.as_retriever()
                         # vector_store.delete(ids=[uuids[-1]], namespace=name_id) # delete_all=True to clear index  
@@ -533,6 +546,8 @@ with st.sidebar:
                     with st.spinner("Generating Summary"): 
                         summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
                         summary = summary_chain.invoke(docs)
+                        # summary = {'output_text': "This is summary..."}
+                        
                         st.session_state.summary = summary['output_text']
                         success = st.success("Summary Generated")
 
