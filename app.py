@@ -201,7 +201,8 @@ def chat(prompt, selected):
                     memory.save_context(question, {"answer": complete_response}) 
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
-                if selected == "Youtube":
+                if selected == "YouTube":
+                    print("Youtube chain...")
                     result = chain.invoke({"input": prompt, "chat_history": memory.load_memory_variables({})["history"]})
                     print("Result: ", result)
                     st.markdown(result)
@@ -212,7 +213,6 @@ def chat(prompt, selected):
             st.write_stream(stream_response("Please upload your documents.")) 
     
     st.session_state.chat_histories[selected] = chat_history
-    # print(f"Chat history [{selected}]: ", chat_history) # st.session_state..chat_history
 
 def pdf_loader(docs):
     merge_docs = []
@@ -246,16 +246,16 @@ def init_vector_db(index_name):
     pinecone_api_key = os.environ.get("PINECONE_API_KEY")
     pc = Pinecone(api_key=pinecone_api_key)
 
-    existing_indexes = [index_info["name"] for index_info in pc.list_indexes()]
-    if index_name not in existing_indexes:
-        pc.create_index(
-            name=index_name,
-            dimension=1536, # openai embedding dimensions 
-            metric="cosine",
-            spec=ServerlessSpec(cloud="aws", region="us-east-1"),
-        )
-        while not pc.describe_index(index_name).status["ready"]:
-            time.sleep(1)
+    # existing_indexes = [index_info["name"] for index_info in pc.list_indexes()]
+    # if index_name not in existing_indexes:
+    #     pc.create_index(
+    #         name=index_name,
+    #         dimension=1536, # openai embedding dimensions 
+    #         metric="cosine",
+    #         spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+    #     )
+    #     while not pc.describe_index(index_name).status["ready"]:
+    #         time.sleep(1)
 
     index = pc.Index(index_name)
 
@@ -488,13 +488,20 @@ with st.sidebar:
         st.title(f"Chat with {selected}")
         url = st.text_input("Enter URL: ")
         name_id = st.text_input("Enter a name for the video: ")
-        name_id_format = name_id.lower().replace(" ", "_").replace("-", "_")
+        name_id_format = name_id.lower().replace(" ", "_").replace("-", "_") # Format the name to add as prefix to id for each embedding
+
+        st.session_state.video_url = st.session_state.get('video_url', "")
+        st.session_state.name_id = st.session_state.get('name_id', "")
+        if 'summary' not in st.session_state:
+            st.session_state.summary = ""
 
         if st.button("Process"):
             with st.spinner("Processing"):
                 try:
-                    st.write(f"URL: {url}")
-                    st.video(url, subtitles="subtitles.vtt") # Display youtube video
+                    if url and validators.url(url):
+                        st.session_state.video_url = url
+                    if name_id:
+                        st.session_state.name_id = name_id
 
                     # Chunking text based on time stamps 
                     loader = YoutubeLoader.from_youtube_url(
@@ -503,35 +510,41 @@ with st.sidebar:
                         transcript_format=TranscriptFormat.CHUNKS,
                         chunk_size_seconds=30,
                     )
-                    docs = loader.load()
-                    for doc in docs:
-                        doc.metadata["video_name"] = name_id 
 
+                    if name_id != "":
+                        docs = loader.load()
+                        for doc in docs:
+                            doc.metadata["video_name"] = name_id 
+                        # print(docs)
 
-                    uuids = [f"{name_id_format}-{str(uuid4())}" for _ in range(len(docs))]
+                        # uuids = [f"{name_id_format}-{str(uuid4())}" for _ in range(len(docs))]
+                        index_name = "doc-chatbot-vectordb"
+                        index = init_vector_db(index_name)
+                        vector_store = PineconeVectorStore(index=index, embedding=embedding, namespace=name_id)
+                        # vector_store.add_documents(documents=docs, ids=uuids)
+                        retriever = vector_store.as_retriever()
+                        # vector_store.delete(ids=[uuids[-1]], namespace=name_id) # delete_all=True to clear index  
 
-                    # loader = YoutubeLoader.from_youtube_url(url, add_video_info=True)
-                    # docs = loader.load()
-                    # text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-                    # doc_splits = text_splitter.split_documents(docs)
-                    # uuids = [str(uuid4()) for _ in range(len(doc_splits))]
+                        st.session_state.chains[selected] = youtube_chain(llm, retriever)
+                    else:
+                        st.error("Video name not provided.")
 
-                    index_name = "doc-chatbot-vectordb"
-                    # index = init_vector_db(index_name)
-                    vector_store = PineconeVectorStore(index=index_name, embedding=embedding, namespace=name_id)
-                    vector_store.add_documents(documents=doc_splits, ids=uuids)
-                    retriever = vectorstore.as_retriever()
-                    # vector_store.delete(ids=[uuids[-1]], namespace=name_id) # delete_all=True to clear index  
-
-                    st.session_state.chains[selected] = youtube_chain(llm, retriever)
-
-                    # Generate summary  
-                    summary_chain = load_summarize_chain(llm, chain_type="map-reduce")
-                    summary = summary_chain.invoke(docs)
-                    st.markdown(f"*Summary:* \n{summary}")
+                    # Generate summary 
+                    with st.spinner("Generating Summary"): 
+                        summary_chain = load_summarize_chain(llm, chain_type="map_reduce")
+                        summary = summary_chain.invoke(docs)
+                        st.session_state.summary = summary['output_text']
+                        success = st.success("Summary Generated")
 
                 except Exception as e:
-                    error = st.error(f"Error processing URL:\n {str(e)}")
+                    error = st.error(f"Error processing URL:\n {str(e)}") 
+                
+        if st.session_state.video_url:
+            st.markdown(f"**Link:** [{st.session_state.name_id}]({st.session_state.video_url})")
+            st.video(st.session_state.video_url) # Display youtube video
+        
+        if st.session_state.summary:
+            st.markdown(f"**Summary:** \n\n{st.session_state.summary}")
 
 # Process user prompt 
 if prompt := st.chat_input("Ask your question..."):
