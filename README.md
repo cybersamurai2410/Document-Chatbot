@@ -2,7 +2,7 @@
 
 Generative AI chatbot application for querying and interacting with documents in various formats using LLMs with RAG (retrieval augmented generation) pipeline. The app allows users to ask questions about context from PDF, CSV, SQL databases, webpages, and YouTube videos. It includes advanced functionalities like conversational memory storing the history of messages, vector databases to store embeddings from the document context. There also is the option to switch between various LLMs including from OpenAI GPT, Anthropic Claude, Google Gemini, Cohere and Meta Llama via Groq. 
 
-**Demo:** [Click Here](https://www.youtube.com/watch?v=demo-video-id)
+**Demo:** [Click Here](https://www.youtube.com/watch?v=USZHfCcRATA)
 
 ## Features
 
@@ -42,3 +42,9 @@ Generative AI chatbot application for querying and interacting with documents in
 **Run Application CMD:** `streamlit run app.py`
 
 ## Screenshots
+![Screenshot 1](Screenshots/pdf_mode-img.png)
+![Screenshot 1](Screenshots/csv_mode-img.png)
+![Screenshot 1](Screenshots/sql_mode-img.png)
+![Screenshot 1](Screenshots/webseacrh_mode-img1.png)
+![Screenshot 1](Screenshots/webseacrh_mode-img2.png)
+![Screenshot 1](Screenshots/youtube_mode-img.png)
