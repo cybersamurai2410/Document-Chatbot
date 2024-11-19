@@ -8,7 +8,7 @@ from langchain_community.document_loaders import (
 )
 from langchain_community.document_loaders.youtube import TranscriptFormat
 
-from langchain_community.vectorstores import Chroma 
+from langchain_chroma import Chroma 
 from langchain_pinecone import PineconeVectorStore, PineconeEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter 
 from langchain.memory import ConversationBufferMemory
@@ -105,7 +105,7 @@ def chat(prompt, selected):
 
                     answer = result["answer"].content
                     sources = result["docs"]
-                    memory.save_context(question, {"answer": answer}) 
+                    st.session_state.memory.save_context(question, {"answer": answer}) 
 
                     content = "\n\n" + "**Relevant Sources:**\n"
                     for i, (doc, score) in enumerate(sources):
@@ -118,7 +118,7 @@ def chat(prompt, selected):
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "CSV":
-                    question["chat_history"] = memory.load_memory_variables({})["history"] # Variable chat_history should be a list of base messages 
+                    question["chat_history"] = st.session_state.memory.load_memory_variables({})["history"] # Variable chat_history should be a list of base messages 
                     current_time = datetime.now()
                     result = chain.invoke(question)
                     print("Result: ", result)
@@ -144,10 +144,10 @@ def chat(prompt, selected):
                     print("Response: ", complete_response)
                     st.markdown(complete_response)
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
-                    memory.save_context(question, {"answer": complete_response}) 
+                    st.session_state.memory.save_context(question, {"answer": complete_response}) 
 
                 if selected == "SQL":
-                    question["chat_history"] = memory.load_memory_variables({})["history"]
+                    question["chat_history"] = st.session_state.memory.load_memory_variables({})["history"]
                     result = chain.invoke(question)
                     print("Result: ", result)
 
@@ -156,7 +156,7 @@ def chat(prompt, selected):
                     st.markdown(answer)
 
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": answer}]
-                    memory.save_context(question, {"answer": answer}) 
+                    st.session_state.memory.save_context(question, {"answer": answer}) 
                 
                 if selected == "Webpage":
                     if chain[1] == 1:
@@ -166,17 +166,17 @@ def chat(prompt, selected):
                         complete_response = ""
                         summmary = "**Summary:**  \n" + result["summmary"]
                         answer = result["answer"]
-                        items = answer.strip('[]').split("], [")
+                        items = answer.split("snippet: ")
 
                         info = []
-                        for item in items:
+                        for item in items[1:]: # Skip the first item as it's empty after split starting with 'snippet:'
                             # Split the item into snippet, title, and link parts
                             snippet, _, rest = item.partition(", title: ") # _ is ", title: " -> splits substrings before and after 
                             title, _, link = rest.partition(", link: ")
                             
                             # Strip the leading identifiers and whitespace from snippet, title, and link
                             result_dict = {
-                                "snippet": snippet.replace("snippet: ", "").strip(),
+                                "snippet": snippet.strip(),
                                 "title": title.strip(),
                                 "link": link.strip()
                             }
@@ -193,18 +193,18 @@ def chat(prompt, selected):
                         complete_response += summmary
 
                     elif chain[1] == 2:
-                        result = chain[0].invoke({"input": prompt, "chat_history": memory.load_memory_variables({})["history"], "agent_scratchpad": ""})
+                        result = chain[0].invoke({"input": prompt, "chat_history": st.session_state.memory.load_memory_variables({})["history"], "agent_scratchpad": ""})
                         print(result)
 
                         complete_response = result["output"]
                         st.write_stream(stream_response(complete_response)) 
 
-                    memory.save_context(question, {"answer": complete_response}) 
-                    chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
+                        st.session_state.memory.save_context(question, {"answer": complete_response}) 
+                        chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
 
                 if selected == "YouTube":
                     result = chain.invoke({"input": prompt, "chat_history": st.session_state.memory.load_memory_variables({})["history"]})
-                    # print("Result: ", result)
+                    print("Result: ", result)
 
                     answer = result["answer"]
                     context = result["context"]
@@ -219,7 +219,7 @@ def chat(prompt, selected):
                     )
 
                     st.markdown(complete_response)
-                    memory.save_context(question, {"answer": answer}) 
+                    st.session_state.memory.save_context(question, {"answer": answer}) 
                     chat_history += [{"role": "user", "content": prompt}, {"role": "assistant", "content": complete_response}]
         else:
             st.write_stream(stream_response("Please upload your documents.")) 
@@ -239,7 +239,7 @@ def pdf_loader(docs):
         # Load and split content from PDF files
         loader = PyPDFLoader(temp_file_path)  
         documents = loader.load_and_split()
-        documents = documents[:3] # Take first three pages of the file (proof of concept)
+        documents = documents[:5] # Take first five pages of the file (proof of concept)
         merge_docs.extend(documents) # Combine list of files 
         shutil.rmtree(temp_dir) # Delete temporary directory
         print(documents, "\n") 
@@ -258,16 +258,16 @@ def init_vector_db(index_name):
     pinecone_api_key = os.environ.get("PINECONE_API_KEY")
     pc = Pinecone(api_key=pinecone_api_key)
 
-    # existing_indexes = [index_info["name"] for index_info in pc.list_indexes()]
-    # if index_name not in existing_indexes:
-    #     pc.create_index(
-    #         name=index_name,
-    #         dimension=1536, # openai embedding dimensions 
-    #         metric="cosine",
-    #         spec=ServerlessSpec(cloud="aws", region="us-east-1"),
-    #     )
-    #     while not pc.describe_index(index_name).status["ready"]:
-    #         time.sleep(1)
+    existing_indexes = [index_info["name"] for index_info in pc.list_indexes()]
+    if index_name not in existing_indexes:
+        pc.create_index(
+            name=index_name,
+            dimension=1536, # openai embedding dimensions 
+            metric="cosine",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+        )
+        while not pc.describe_index(index_name).status["ready"]:
+            time.sleep(1)
 
     index = pc.Index(index_name)
 
