@@ -42,9 +42,9 @@ Generative AI chatbot application for querying and interacting with documents in
 **Run Application CMD:** `streamlit run app.py`
 
 ## Screenshots
-![Screenshot 1](Screenshots/pdf_mode-img.png)
-![Screenshot 1](Screenshots/csv_mode-img.png)
-![Screenshot 1](Screenshots/sql_mode-img.png)
-![Screenshot 1](Screenshots/webseacrh_mode-img1.png)
-![Screenshot 1](Screenshots/webseacrh_mode-img2.png)
-![Screenshot 1](Screenshots/youtube_mode-img.png)
+![PDF IMG](Screenshots/pdf_mode-img.png)
+![CSV IMG](Screenshots/csv_mode-img.png)
+![SQL IMG](Screenshots/sql_mode-img.png)
+![WEB1 IMG](Screenshots/websearch_mode-img1.png)
+![WEB2 IMG](Screenshots/websearch_mode-img2.png)
+![YT IMG](Screenshots/youtube_mode-img.png)
