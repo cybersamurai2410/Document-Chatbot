@@ -96,7 +96,12 @@ def get_ragagent(llm, retriever):
     print("tool_names: ", tool_names)
 
     agent = create_structured_chat_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, max_iterations=3)
+    agent_executor = AgentExecutor(
+        agent=agent, 
+        tools=tools, verbose=True, 
+        max_iterations=3,
+        handle_parsing_errors=True
+    )
 
     return agent_executor 
 
@@ -156,45 +161,12 @@ def youtube_chain(llm, retriever):
 
     return retrieval_chain
 
-"""
-[snippet: From a perfect uppercut in the welterweight opener to a massive right hook that ended the evening, the first event after UFC 300 was an explosive affair that produced plenty of highlights and gave ..., title: Main Card Results | UFC Fight Night: Nicolau vs Perez, link: https://www.ufc.com/news/main-card-results-highlights-winner-interviews-ufc-fight-night-nicolau-vs-perez?language_content_entity=en], [snippet: See The Fight Results, Watch Post-Fight Interviews With The Main Card Winners And More From UFC 298: Volkanovski vs Topuria, Live From Honda Center In Anaheim By E. Spencer Kyte, on X @spencerkyte ..., title: Main Card Results | UFC 298: Volkanovski vs Topuria - UFC.com, link: https://www.ufc.com/news/main-card-results-highlights-winner-interviews-ufc-298-volkanovski-vs-topuria?language_content_entity=en], [snippet: Ultimate Fighting Championship (UFC) was back at the friendly confines of the Apex last night (Sat., April 27, 2024) in Las Vegas, Nevada for UFC Vegas 91. Headlining the event was a Flyweight ..., title: UFC Vegas 91 results: Biggest winners, loser from 'Nicolau vs. Perez ..., link: https://www.mmamania.com/2024/4/28/24143415/ufc-vegas-91-results-biggest-winners-loser-nicolau-perez-last-night-espn-mma], [snippet: Esteban Ribovics (29-28, 29-28, 29-28) defeats Kamuela Kirk by unanimous decision . Esteban Ribovics and Kamuela Kirk set the Fight of the Night bar high right out of the gate on Saturday night ..., title: UFC 290: Volkanovski vs Rodriguez Final Results - UFC.com, link: https://www.ufc.com/news/ufc-290-volkanovski-vs-rodriguez-results-highlights-winner-interviews?language_content_entity=en]
-"""
 
 """
-> Entering new AgentExecutor chain...
-Question: How to run agent as iterator?
+Sample questions:
+- Get me the latest news about AI
+- What skills required to become and AI engineer
 
-Thought: The agent needs to be run as an iterator to process a sequence of inputs.
-
-Action:
-```
-{
-  "action": "webpages",
-  "action_input": "iterator"
-}
-```
-Running Agent as an Iterator | 🦜️🔗 LangChain
-
-Add chat history | 🦜️🔗 LangChain
-
-us out by providing feedback on this documentation page:PreviousStreamingNextReturning Structured OutputCommunityDiscordTwitterGitHubPythonJS/TSMoreHomepageBlogYouTubeCopyright © 2024 LangChain, Inc.
-
-class_=("post-content", "post-title", "post-header")        )    ),)docs = loader.load()text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)splits = text_splitter.split_documents(docs)vectorstore = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings())retriever = vectorstore.as_retriever()### Contextualize question ###contextualize_q_system_prompt = """"Given a chat history and the latest user question \which might reference context in the chat history, formulate a standalone question \which can be understood without the chat history. Do NOT answer the question, \just reformulate it if needed and otherwise return it as is.""""contextualize_q_prompt = ChatPromptTemplate.from_messages(    [        ("system", contextualize_q_system_prompt),        MessagesPlaceholder("chat_history"),        ("human", "{input}"),    ])history_aware_retriever = create_history_aware_retriever(    llm, retriever, contextualize_q_prompt)### Answer questionHere is the response:
-
-Action:
-```
-{
-  "action": "Final Answer",
-  "action_input": "To run the agent as an iterator, you need to use the `create_history_aware_retriever` function, which takes the language model, the retriever, and a prompt template as inputs. The prompt template should be used to contextualize the question, and the retriever should be used to retrieve relevant documents. The function will return a retriever that is aware of the chat history."
-}
-```
-
-> Finished chain.
-"{'input': 'how to run agent as iterator?', 'output': 'To run the agent as an iterator, you need to use the `create_history_aware_retriever` function, which takes the language model, the retriever, and a prompt template as inputs. The prompt template should be used to contextualize the question, and the retriever should be used to retrieve relevant documents. The function will return a retriever that is aware of the chat history.'}"
-
-"""
-
-"""
 URLs:
 - https://www.datacamp.com/tutorial/how-transformers-work
 - https://medium.com/@puneetthegde22/mamba-architecture-a-leap-forward-in-sequence-modeling-370dfcbfe44a
@@ -207,6 +179,4 @@ YouTube:
 url = "https://www.youtube.com/watch?v=4VDZRR07Eqw"
 name_id/namespace = "YCombinator startup application "
 index_name = "doc-chatbot-vectordb"
-
-Result:  {'input': 'what is y combinator?', 'chat_history': [], 'context': [], 'answer': 'The Y combinator is a mathematical concept that is often used to demonstrate the fixpoint combinator in lambda calculus. It is a function that takes a function as an argument and returns a new function that is equivalent to the input function, but with the input function applied to itself. This is often used to create recursive functions in a context where direct recursion is not possible. The Y combinator is named after its inventor, the mathematician and logician Haskell Curry.'}
 """
